@@ -93,7 +93,7 @@ test('new topics and appended unrelated requests do not borrow previous answer e
       const calls = histories.length;
       const next = await send(prompt, first.session_id);
       assert.equal(next.behavior, 'DECLINE', prompt);
-      assert.deepEqual(next.context.items, [], prompt);
+      assert.equal(next.context, null, prompt);
       assert.equal(histories.length, calls, 'no teaching model call without relevant evidence');
     }
   } finally { globalThis.fetch = original; }
@@ -113,10 +113,12 @@ test('an action request naming a new subject uses its own retrieval and can stil
     const prompt = 'Give me just one small action to write JavaScript code.';
     const standalone = await send(prompt);
     const continued = await send(prompt, first.session_id);
+    assert.equal(standalone.behavior, 'DECLINE');
     assert.equal(continued.behavior, 'DECLINE');
-    assert.deepEqual(continued.context.items.map((item) => item.id), standalone.context.items.map((item) => item.id));
-    assert.notDeepEqual(continued.context.items.map((item) => item.id), first.context.used_ids);
-    assert.equal(continued.context.used_ids, undefined);
+    assert.equal(standalone.context, null);
+    assert.equal(continued.context, null);
+    const saved = await loadSession(continued.session_id);
+    assert.equal(saved.messages.at(-1).context_ids, undefined);
   } finally { globalThis.fetch = original; }
 });
 
@@ -147,7 +149,7 @@ test('a rewrite request needs an immediately preceding grounded answer', async (
     const declined = await send('What is the capital of France?', first.session_id);
     const next = await send('Can you shorten that?', declined.session_id);
     assert.equal(next.behavior, 'DECLINE');
-    assert.deepEqual(next.context.items, []);
+    assert.equal(next.context, null);
     assert.equal(histories.length, 1, 'does not skip a declined turn to resurrect older sources');
   } finally { globalThis.fetch = original; }
 });
@@ -163,6 +165,7 @@ test('follow-up answers still reject invented citations and preserve crisis prio
     const invalid = await send('Can you shorten that?', first.session_id);
     assert.equal(invalid.behavior, 'DECLINE');
     assert.equal(invalid.flags.output_valid, false);
+    assert.equal(invalid.context, null);
     assert.doesNotMatch(invalid.reply, /Unsupported/);
     globalThis.fetch = async () => { throw new Error('Crisis support must not call a model'); };
     const crisis = await send('Can you shorten that? I want to die.', first.session_id);

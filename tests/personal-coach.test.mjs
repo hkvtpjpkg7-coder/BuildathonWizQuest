@@ -88,7 +88,7 @@ test('unrelated new question does not inherit evidence from an earlier concern',
   try {
     const second = await send('What is the capital of France?', first.body.session_id);
     assert.equal(second.body.behavior, 'DECLINE');
-    assert.equal(second.body.context.items.length, 0);
+    assert.equal(second.body.context, null);
   } finally { globalThis.fetch = original; }
 });
 

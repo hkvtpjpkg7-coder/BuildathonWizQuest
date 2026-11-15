@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import passages, {SOURCE} from '../netlify/lib/knowledge/patanjali.mjs';
-import {retrieve, formatPassages, PASSAGE_COUNT} from '../netlify/lib/rag.mjs';
+import {retrieve, requestedSutras, formatPassages, PASSAGE_COUNT} from '../netlify/lib/rag.mjs';
 
 test('the PDF index has unique citations and physical page boundaries', () => {
   assert.equal(SOURCE.page_count, 93);
@@ -33,6 +33,27 @@ test('empty, generic and unrelated technical requests do not get irrelevant pass
   assert.deepEqual(retrieve(''), []);
   assert.deepEqual(retrieve('the and if how'), []);
   assert.deepEqual(retrieve('How to configure Kubernetes segmentation fault'), []);
+});
+
+test('named sutras retrieve matching commentary without borrowing evidence for unsupported numbers', () => {
+  assert.deepEqual(requestedSutras('Compare Yoga Sutra 2.46 with chapter 2, verse 47.'), ['2.46', '2.47']);
+  assert.deepEqual(requestedSutras('II Sutra 29 in the Yoga Sutras'), ['2.29']);
+  assert.deepEqual(requestedSutras('2.46.'), ['2.46']);
+  assert.deepEqual(requestedSutras('My meeting starts at 2:30.'), []);
+  const hits = retrieve('Explain Patanjali Sutras 2.46 and 2.47.');
+  assert.match(hits.find((hit) => hit.sutras.includes('2.46')).text, /steady.{0,25}comfortable/i);
+  assert.match(hits.find((hit) => hit.sutras.includes('2.47')).text, /prayatnashaitalya/i);
+  assert.deepEqual(retrieve('What yoga posture is recommended by Yoga Sutra 2.60?'), []);
+});
+
+test('Sanskrit and list questions retrieve supporting passages and note extraction discrepancies', () => {
+  const vrittis = retrieve('What are the five vṛttis?');
+  assert.match(vrittis[0].text, /pramanaviparyayavikalpanidrasmruti/i);
+  const limbs = formatPassages(retrieve('What are the eight limbs?'));
+  assert.match(limbs, /standard ordering of 2\.29, dharana is sixth and dhyana seventh/i);
+  const definition = formatPassages(retrieve('Translate 1.2 of the Yoga Sutras.'));
+  assert.match(definition, /reviewed link.*commentary on Yoga Sutra 1\.2/i);
+  assert.match(definition, /standard Sanskrit.*yogaś citta-vṛtti-nirodhaḥ/i);
 });
 
 test('source formatting labels physical page numbers and untrusted text', () => {

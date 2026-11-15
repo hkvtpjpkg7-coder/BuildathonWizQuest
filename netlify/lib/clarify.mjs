@@ -47,16 +47,17 @@ export function isClarificationContinuation(message, topic) {
 }
 
 export function requestsSource(message) {
-  const text = String(message || '').trim();
-  // "Source of my anxiety" asks about a cause, not citations for the last
-  // response. A demonstrative or reference to the answer is different.
-  if (/\bsource\s+of\s+(?!(?:this|that|these|those|your (?:(?:last|previous) )?(?:answer|response|reply)|the (?:(?:last|previous) )?(?:answer|response|reply))\b)/i.test(text)) return false;
-  if (/\bwhere\s+did\s+you\s+(?:get|find|read|learn)\s+(?:this|that|it|these|those)\b/i.test(text)) return true;
-  const explicitReference = /\b(?:sources?|references?|citations?|cited|reference ids?)\b/i.test(text);
-  const whichPriorTeaching = /\b(?:sutra|sutras|verse|verses)\b/i.test(text) &&
-    /\b(?:this|that|those|these|you (?:used|mentioned|cited))\b/i.test(text);
-  return (explicitReference || whichPriorTeaching) &&
-    /\b(?:what|which|where|show|give|provide|share|cite|tell|explain|find)\b/i.test(text);
+  const text = String(message || '').trim().replace(/[’‘]/g, "'").replace(/\s+/g, ' ')
+    .replace(/^(?:(?:thanks|thank you|okay|got it)[,.!]\s+|please\s+)/i, '')
+    .replace(/^what's\s+/i, 'what is ')
+    .replace(/(?:,?\s+please)?[.!?]*$/i, '');
+  // Standalone provenance questions can point back to an actual answer.
+  // Do not intercept a new teaching question merely because it asks for
+  // citations, or mistake a question about the cause of an emotion for one.
+  if (/^where did you (?:get|find|read|learn) (?:this|that|it|these|those|that information)$/i.test(text)) return true;
+  if (/^(?:(?:can|could|would) you )?cite (?:this|that|(?:the |your )?sources?|your (?:(?:last|previous) )?(?:answer|response|reply))$/i.test(text)) return true;
+  if (/^(?:what|which) (?:sutra|sutras|verse|verses) (?:(?:is|was|were) (?:this|that|these|those)|did you (?:use|quote|cite|mention))$/i.test(text)) return true;
+  return /^(?:(?:what|which) (?:(?:is|are|was|were) )?|(?:(?:can|could|would) you )?(?:show|give|tell|provide|share)(?: me)? )?(?:(?:your|the) )?(?:sources?|references?|citations?|reference ids?)(?: (?:of|for) (?:this|that|these|those|(?:your|the) (?:(?:last|previous) )?(?:answer|response|reply))| (?:did )?you (?:used?|cited?|quoted?))?$/i.test(text);
 }
 
 export function declinesToElaborate(message) {

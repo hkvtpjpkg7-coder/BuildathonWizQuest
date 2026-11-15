@@ -52,3 +52,12 @@ test('a source explicitly requested remains visible and unsourced replies have n
   const question = showReply('I’m here. What has been feeling most difficult?', { behavior: 'ANSWER' });
   assert.equal(question.children.some((item) => item.tag === 'details'), false);
 });
+
+test('saved declines and care responses do not display old source metadata', () => {
+  for (const behavior of ['DECLINE', 'CARE']) {
+    const bubble = showReply('I cannot help with that request.', {
+      behavior, context_type: 'rag', context_ids: ['P8-1'], context_used_ids: ['P8-1'],
+    });
+    assert.equal(bubble.children.some((item) => item.tag === 'details'), false);
+  }
+});

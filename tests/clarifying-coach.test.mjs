@@ -60,6 +60,11 @@ test('source intent distinguishes asking about causes from asking for provenance
   assert.equal(requestsSource('What is the source?'), true);
   assert.equal(requestsSource('Which sutra discusses sleep?'), false);
   assert.equal(requestsSource('Which sutra was that?'), true);
+  assert.equal(requestsSource('Cite the source for Sutra 1.12.'), false);
+  assert.equal(requestsSource('Which source says that Sutra 1.2 means I should stop feeling?'), false);
+  assert.equal(requestsSource('What sources did you cite?'), true);
+  assert.equal(requestsSource('What’s your source?'), true);
+  assert.equal(requestsSource('Can you cite the source, please?'), true);
 });
 
 test('loneliness follow-up with no relevant teaching stays supportive rather than forcing a source', async () => {
@@ -162,7 +167,7 @@ test('an unrelated question after a clarification does not reuse earlier referen
     const first = await send('I am not sleeping properly');
     const next = await send('What is the capital of France?', first.body.session_id);
     assert.equal(next.body.behavior, 'DECLINE');
-    assert.equal(next.body.context.items.length, 0);
+    assert.equal(next.body.context, null);
     assert.doesNotMatch(next.body.reply, /pdf|passage/i);
   } finally { globalThis.fetch = original; }
 });

@@ -506,7 +506,8 @@
       const ctxIds = Array.isArray(data.context?.items) ? data.context.items.map((x) => x.id).filter(Boolean) : data.context_ids ?? [];
       const cited = new Set([...String(text).matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((match) => match[1]));
       const used = data.context?.used_ids ?? data.context_used_ids;
-      const citedIds = ctxType === "rag" ? ctxIds.filter((id) => Array.isArray(used) ? used.includes(id) : cited.has(id)) : [];
+      const canShowSources = data.behavior !== "DECLINE" && data.behavior !== "CARE";
+      const citedIds = canShowSources && ctxType === "rag" ? ctxIds.filter((id) => Array.isArray(used) ? used.includes(id) : cited.has(id)) : [];
       const sourceRequested = data.context?.source_requested ?? data.context_source_requested ?? false;
       // Historical answers included internal reference IDs in their prose.
       // Hide those by default while preserving them when explicitly requested.
@@ -566,7 +567,8 @@
         sessionId = d.session_id;
         ephemeralSession = false;
         store.set(ACTIVE_SESSION_KEY, sessionId);
-        sessions.unshift({ id: sessionId, title: text.slice(0, 60), updated: Date.now() });
+        const title = d.flags?.pii_redacted?.length ? "Conversation" : text.slice(0, 60);
+        sessions.unshift({ id: sessionId, title, updated: Date.now() });
       } else {                                       // existing chat: move it to the top of the list
         const s = sessions.find((x) => x.id === sessionId);
         if (s) { s.updated = Date.now(); sessions = [s, ...sessions.filter((x) => x !== s)]; }
