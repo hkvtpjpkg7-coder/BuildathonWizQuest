@@ -72,10 +72,27 @@ server, and nothing from the Personal Coach conversation is used.
 - Lessons for the rest of Chapter 1, and Chapters 2–11.
 - Saving progress to the signed-in account instead of the browser only.
 - Accessibility review of the games (keyboard and screen reader) with real users.
+- Known layout issues (headless check in the Mentor tab through the private
+  preview, at 360x740, 390x844 and 1280x800; fix them in the lesson app, then
+  copy it here):
+  - All sizes: in The Lake Guardian's six challenges and Catch the Now step 1
+    the "Mist on the lake" meter label is cut off, because the Prana level meter's `.meter` rule (12px high, overflow
+    hidden) also matches the challenge meter.
+  - 390 and 360 wide: in "Meet Your Sleep" step 2 the dream clouds run past
+    the right edge.
+  - 360x740 only (the lessons frame is 636px high there): a few panels scroll
+    or push buttons below the fold: the rewards page ("Back to the path"),
+    the first intro card of Firm Roots, Five Gems and One Sense, Still Mind,
+    Guardian card 2 and challenge 4, Still the Lake step 3, Five Gems step 3,
+    Clear the Glass step 1, Firm Roots step 1, and the result lines of Five
+    Gems and the Guardian.
 
 ## Tests
 
 `tests/mentor-ui.test.mjs` checks that the Mentor tab frames the lessons, that
 the coach page keeps a single inline script, that the lessons load no outside
 files, that the engine and lesson data parse and match the menu, and the
-framing headers in both `netlify.toml` and the private preview.
+framing headers in both `netlify.toml` and the private preview (and that the
+two send identical headers), that every file in `public/lessons/` is on the
+private preview's static-file allowlist, and that on phones the Mentor tab
+hides the chat list and downloads with CSS only.

@@ -73,3 +73,31 @@ test('Netlify headers allow same-origin framing only', () => {
   assert.match(toml, /frame-src 'self' https:\/\/\*\.firebaseapp\.com https:\/\/accounts\.google\.com; frame-ancestors 'self'/);
   assert.match(toml, /img-src 'self' data:/);
 });
+
+test('every lesson file is on the private preview allowlist', async () => {
+  const root = new URL('../public/lessons/', import.meta.url);
+  const files = fs.readdirSync(root, { recursive: true })
+    .filter((f) => fs.statSync(new URL(f, root)).isFile() && !/^fonts\/LICENSE-/.test(f) && !f.endsWith('.DS_Store'));
+  assert.ok(files.length >= 4);
+  for (const f of files) {
+    const res = await routePreview(new Request('http://127.0.0.1/lessons/' + f));
+    assert.equal(res.status, 200, `/lessons/${f} is served by the private preview`);
+  }
+});
+
+test('netlify.toml and the private preview send the same framing headers', async () => {
+  const toml = read('../netlify.toml');
+  const tomlCsp = toml.match(/Content-Security-Policy = "([^"]+)"/)[1];
+  const tomlXfo = toml.match(/X-Frame-Options = "([^"]+)"/)[1];
+  const res = await routePreview(new Request('http://127.0.0.1/lessons/index.html'));
+  assert.equal(res.headers.get('content-security-policy'), tomlCsp);
+  assert.equal(res.headers.get('x-frame-options'), tomlXfo);
+});
+
+test('on phones the Mentor tab hides the chat list and downloads with CSS only', () => {
+  const block = html.match(/@media \(max-width: 760px\) \{\s*\.app:has\(#view-mentor\.on\)[\s\S]*?\n {4}\}/)?.[0] ?? '';
+  for (const sel of ['.app:has(#view-mentor.on) > aside', '.app:has(#view-mentor.on) #dl-json', '.app:has(#view-mentor.on) #dl-csv']) {
+    assert.ok(block.includes(sel), `${sel} is hidden on phones`);
+  }
+  assert.match(block, /display: none;/);
+});
