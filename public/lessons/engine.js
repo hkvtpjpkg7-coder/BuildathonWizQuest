@@ -252,7 +252,7 @@ function drawSnake(){
  if(snView.lvl==='chapters'){
   head='<b>Chapters</b><span>Tap Chapter 1 to see its modules</span>';
   N.push({k:'ch',n:1,label:'Chapter 1 · Samadhi Pada',sub:P.mods.filter(m=>m.done).length+' of '+P.mods.filter(m=>!m.soon).length+' modules complete',st:P.ch1done?'done':'open',now:true});
-  for(let c=2;c<=CHAPTERS;c++)N.push({k:'ch',n:c,label:'Chapter '+c,sub:'Coming soon',st:c===2&&P.ch1done?'later':'locked'});
+  for(let c=2;c<=CHAPTERS;c++)N.push({k:'ch',n:c,label:'Chapter '+c,st:'locked'});
  }else if(snView.lvl==='modules'){
   head='<button class="back" id="pBack" aria-label="Back to chapters">‹</button><b>Chapter 1 · Samadhi Pada</b><span>'+P.mods.filter(m=>m.done).length+' of '+P.mods.filter(m=>!m.soon).length+' modules</span>';
   P.mods.forEach(m=>N.push({k:'md',mi:m.mi,n:m.mi+1,label:m.name.replace(/^Module \d+ · /,''),sub:m.soon?'Coming soon':m.nd+' of '+m.nb+(m.nb===1?' lesson':' lessons'),st:m.soon?'later':m.done?'done':m.open?'open':'locked',now:P.cur&&P.cur.mi===m.mi}));
@@ -276,7 +276,7 @@ function drawSnake(){
    const aria=o.label+'. '+({done:'Complete',open:'Open',locked:'Locked',later:'Coming soon'})[o.st];
    return '<button class="sn '+o.k+' '+o.st+(o.now&&o.st!=='done'?' now':'')+(right?'':' l')+(small?' tight':'')+'" data-i="'+i+'" style="'+pos+';top:'+(o.y-h/2).toFixed(1)+'px;height:'+h+'px;max-width:'+(room+o.r*2+10).toFixed(0)+'px" aria-label="'+esc(aria)+'"><span class="dot" style="width:'+o.r*2+'px;height:'+o.r*2+'px">'+inner+'</span><span class="lab">'+esc(o.label)+(o.sub&&!small?'<small>'+esc(o.sub)+'</small>':'')+'</span></button>'}).join('');
  box.querySelectorAll('.sn').forEach(b=>b.onclick=()=>{const o=N[+b.dataset.i];
-  if(o.k==='ch'){if(o.n===1){snView={lvl:'modules',mod:null};note('');drawSnake()}else note(o.st==='locked'?'Chapter '+o.n+' opens when Chapter '+(o.n-1)+' is complete.':'Chapter '+o.n+' is coming soon.');return}
+  if(o.k==='ch'){if(o.n===1){snView={lvl:'modules',mod:null};note('');drawSnake()}else note('Chapter '+o.n+' opens when Chapter '+(o.n-1)+' is complete.');return}
   if(o.k==='md'){if(o.st==='locked'){note('This module opens when Module '+o.mi+' is complete.');return}if(o.st==='later'){note('The lessons in this module are coming soon.');return}snView={lvl:'lessons',mod:o.mi};note('');drawSnake();return}
   if(o.st==='later'){note('This lesson is coming soon.');return}
   if(o.st==='locked'){note('This lesson opens when the one before it is complete.');return}

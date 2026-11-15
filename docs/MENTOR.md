@@ -17,7 +17,7 @@ earlier sample "find a mentor" prototype.
   500, 800, 1200, 1800 and 2600 Prana). Four tiles show Prana, badges, support
   gems and lotus petals; tapping one opens a rewards page with every badge.
 - **The snake path, one level at a time.** Starting at the bottom: 11 chapter
-  dots (Chapter 1 is built; 2–11 show "Coming soon"). Tapping Chapter 1 shows
+  dots (Chapter 1 is built; 2–11 are locked). Tapping Chapter 1 shows
   only its 8 modules; tapping a module shows only its lessons. Each module opens
   when the one before it is complete, and finished modules and lessons can
   always be reopened. Lessons not built yet show "Coming soon" and do not block
