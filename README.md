@@ -1,16 +1,17 @@
-# WizQuest Personal Coach
+# WiserWave Personal Coach
 
-**Buildathon demo:** http://34.136.82.108:8888/ (temporary VM deployment).
+**Buildathon demo:** https://wiserwave.app/ (temporary VM deployment).
 
 **Start here:** See [Personal Coach setup and limitations](docs/PERSONAL_COACH.md),
 the [Mentor prototype](docs/MENTOR.md) (sample data only)
-and the [future authentication plan](docs/AUTH_PLAN.md). The material below is
+and the [Google sign-in setup and limitations](docs/AUTH_PLAN.md). The material below is
 the original starter guide; its Mood Meter prompt, review data, and sample tests
 describe the previous example and are not the current coach's evaluation.
 
 Open **Test runner → Load sample coach tests → Run** for coach-specific examples.
-`npm test` runs those examples from the terminal; set `LLM_PROVIDER=mock` for
-an offline provider run. Automatic scores compare behavior labels only, so
+`npm test` runs those examples from the terminal; set `LLM_PROVIDER=mock` and
+`AUTH_PROVIDER=off` for an isolated offline run. Never use `AUTH_PROVIDER=off`
+on a public site. Automatic scores compare behavior labels only, so
 review the responses and citations.
 
 # Hackathon Chat Starter (original guide)

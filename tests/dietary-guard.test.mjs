@@ -4,6 +4,8 @@ import handler from '../netlify/functions/chat/index.mjs';
 import { retrieve } from '../netlify/lib/rag.mjs';
 import { loadSession } from '../netlify/lib/store.mjs';
 
+process.env.AUTH_PROVIDER = 'off'; // isolated test process
+
 const question = 'I feel distracted when I try to meditate. How can I focus?';
 const source = retrieve(question)[0].id;
 

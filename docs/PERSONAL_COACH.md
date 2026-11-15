@@ -1,6 +1,6 @@
-# WizQuest Personal Coach
+# WiserWave Personal Coach
 
-The personal coach is the current first phase of WizQuest. It searches locally
+The personal coach is the current first phase of WiserWave. It searches locally
 indexed excerpts of the supplied *Patanjali Yoga Sutras* PDF and uses a model to
 offer a tentative reflection with references to physical PDF page numbers.
 Conversation history is kept within the current session. A front-end Mentor
@@ -21,6 +21,12 @@ existing supported provider in `.env`, for example `LLM_PROVIDER=openai` and
 `OPENAI_MODEL` to a model available to that project. Never paste keys into this
 repository or a chat. OpenAI API access and any applicable credits are managed
 separately from a signed-in Codex session.
+
+Authentication fails closed until configured. For a private local-only preview,
+explicitly set `AUTH_PROVIDER=off`; never use that setting on a public site.
+For Google sign-in, follow [the Firebase setup and validation steps](AUTH_PLAN.md).
+The command-line test runner does not yet support Firebase bearer tokens against
+a protected deployment; the in-browser runner uses the signed-in account.
 
 Run `npm run dev` and open the address Netlify prints. If no provider is
 configured, the app uses **mock mode**, which only shows an extracted source

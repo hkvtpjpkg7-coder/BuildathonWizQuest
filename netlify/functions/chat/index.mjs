@@ -34,6 +34,7 @@ import {
 import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
 import { retrieve, formatPassages } from "../../lib/rag.mjs";
 import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
+import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
 
 // -----------------------------------------------------------------------------
 // Rate limiter used in step 3.
@@ -55,19 +56,22 @@ const LIMITED_LOOKUP_PER_IP = 3;
 const LIMITED_LOOKUP_GLOBAL = 120;
 let limitedLookupWindow = { start: 0, count: 0 };
 
-function hasLimitedCrisisMarker(id) {
+const markerKey = (id, ownerId) => ownerId ? JSON.stringify([ownerId, id]) : id;
+function hasLimitedCrisisMarker(id, ownerId = null) {
   if (!isValidId(id)) return false;
-  const expires = limitedCrisisMarkers.get(id);
+  const key = markerKey(id, ownerId);
+  const expires = limitedCrisisMarkers.get(key);
   if (!expires) return false;
-  if (expires <= Date.now()) { limitedCrisisMarkers.delete(id); return false; }
+  if (expires <= Date.now()) { limitedCrisisMarkers.delete(key); return false; }
   return true;
 }
 
-function rememberLimitedCrisis(id) {
+function rememberLimitedCrisis(id, ownerId = null) {
   if (!isValidId(id)) return;
-  limitedCrisisMarkers.delete(id);
+  const key = markerKey(id, ownerId);
+  limitedCrisisMarkers.delete(key);
   while (limitedCrisisMarkers.size >= LIMITED_MARKER_MAX) limitedCrisisMarkers.delete(limitedCrisisMarkers.keys().next().value);
-  limitedCrisisMarkers.set(id, Date.now() + LIMITED_MARKER_TTL_MS);
+  limitedCrisisMarkers.set(key, Date.now() + LIMITED_MARKER_TTL_MS);
 }
 
 function allowLimitedLookup(ip) {
@@ -130,18 +134,18 @@ function hasActiveCrisis(session) {
   return Boolean(recentCrisisMessage(session?.messages));
 }
 
-function crisisInContext(text, session) {
-  return showsDistress(text) || ((hasActiveCrisis(session) || hasLimitedCrisisMarker(session?.id)) && !explicitlySafe(text));
+function crisisInContext(text, session, ownerId = null) {
+  return showsDistress(text) || ((hasActiveCrisis(session) || hasLimitedCrisisMarker(session?.id, ownerId)) && !explicitlySafe(text));
 }
 
 // Under rate or session limits, return the same immediate support without
 // creating a session, storing messages, making a model call, or lifting caps.
-function limitedCrisisResponse(body, text, started) {
+function limitedCrisisResponse(body, text, started, ownerId = null) {
   const redacted = redactPII(text);
   const responseSessionId = isValidId(body?.session_id) ? body.session_id : crypto.randomUUID();
   // Also remember a newly generated ID for follow-ups in this process. It is
   // still unsaved, bounded by the same TTL/cap and lost on worker changes.
-  if (!explicitlySafe(text)) rememberLimitedCrisis(responseSessionId);
+  if (!explicitlySafe(text)) rememberLimitedCrisis(responseSessionId, ownerId);
   return Response.json({
     session_id: responseSessionId,
     turn: null,
@@ -178,6 +182,10 @@ export default async (req, context) => {
   // ---- Step 1: accept only POST with a JSON body ---------------------------
   if (req.method !== "POST") return Response.json({ error: "Use POST" }, { status: 405 });
 
+  let identity;
+  try { identity = await authenticateRequest(req); } catch (error) { return authFailure(error); }
+  const ownerId = identity.uid;
+
   let body;
   try {
     body = JSON.parse(await readBoundedBody(req));
@@ -186,41 +194,93 @@ export default async (req, context) => {
     return Response.json({ error: 'Body must be JSON: {"message": "..."}' }, { status: 400 });
   }
 
+  const callerIp = context?.ip ?? "unknown";
+  // Authenticated callers are throttled before any session lookup. Crisis
+  // responses remain available; a bounded lookup may recover an owned active
+  // crisis, but never looks in another account's namespace.
+  if (identity.enabled && rateLimited(callerIp)) {
+    const text = typeof body?.message === 'string' ? body.message : '';
+    const validId = isValidId(body?.session_id);
+    const marked = validId && hasLimitedCrisisMarker(body.session_id, ownerId);
+    let owned = null;
+    if (validId && !marked && allowLimitedLookup(callerIp)) {
+      try { owned = await loadSession(body.session_id, ownerId); } catch { /* give generic support if needed */ }
+    }
+    if (showsDistress(text)) {
+      // Only return the supplied ID when ownership is established or this
+      // user's own unsaved crisis marker already exists.
+      return limitedCrisisResponse(owned || marked ? body : {}, text, started, ownerId);
+    }
+    if (marked) {
+      if (explicitlySafe(text)) limitedCrisisMarkers.delete(markerKey(body.session_id, ownerId));
+      else return limitedCrisisResponse(body, text, started, ownerId);
+    }
+    if (owned && crisisInContext(text, owned, ownerId)) {
+      rememberLimitedCrisis(body.session_id, ownerId);
+      return limitedCrisisResponse(body, text, started, ownerId);
+    }
+    return Response.json(
+      { error: "Too many messages, please slow down." },
+      { status: 429, headers: { "retry-after": "10" } }
+    );
+  }
+
+  // Authenticated chats may only refer to a session already owned by this user,
+  // or to a temporary crisis marker created for this user. Do this before any
+  // validation, rate-limit, or crisis branch can read or mutate session state.
+  let ownedSession = null;
+  if (identity.enabled && isValidId(body?.session_id)) {
+    try { ownedSession = await loadSession(body.session_id, ownerId); }
+    catch {
+      if (typeof body?.message === 'string' && showsDistress(body.message)) {
+        return limitedCrisisResponse({}, body.message, started, ownerId);
+      }
+      return Response.json({ error: 'Session temporarily unavailable.' }, { status: 503 });
+    }
+    if (!ownedSession && !hasLimitedCrisisMarker(body.session_id, ownerId)) {
+      // Preserve immediate support even if a user is holding a stale or
+      // unowned ID; never return or adopt that ID or inspect another account.
+      if (typeof body?.message === 'string' && showsDistress(body.message)) {
+        return limitedCrisisResponse({}, body.message, started, ownerId);
+      }
+      return Response.json({ error: 'session not found' }, { status: 404 });
+    }
+  }
+
   // ---- Step 2: validate the message ----------------------------------------
   // Rejects empty messages and messages over MAX_MESSAGE_CHARS (see checks.mjs).
   const input = validateMessage(body?.message);
   if (!input.ok) {
-    if (typeof body?.message === 'string' && showsDistress(body.message)) return limitedCrisisResponse(body, body.message, started);
+    if (typeof body?.message === 'string' && showsDistress(body.message)) return limitedCrisisResponse(body, body.message, started, ownerId);
     return Response.json({ error: input.error }, { status: 400 });
   }
   if (body.session_id != null && !isValidId(body.session_id)) {
-    if (showsDistress(input.text)) return limitedCrisisResponse(body, input.text, started);
+    if (showsDistress(input.text)) return limitedCrisisResponse(body, input.text, started, ownerId);
     return Response.json({ error: "invalid session_id" }, { status: 400 });
   }
 
   // ---- Step 3: rate limit ----------------------------------------------------
   // 429 + retry-after tells well-behaved clients (like scripts/run-tests.mjs)
   // to wait and try again.
-  const callerIp = context?.ip ?? "unknown";
-  if (rateLimited(callerIp)) {
+  if (!identity.enabled && rateLimited(callerIp)) {
     if (showsDistress(input.text)) {
-      rememberLimitedCrisis(body.session_id);
-      return limitedCrisisResponse(body, input.text, started);
+      rememberLimitedCrisis(body.session_id, ownerId);
+      return limitedCrisisResponse(body, input.text, started, ownerId);
     }
-    if (hasLimitedCrisisMarker(body.session_id)) {
+    if (hasLimitedCrisisMarker(body.session_id, ownerId)) {
       // This only clears the transient marker. A stored crisis_active flag is
       // not changed while rate-limited; the person may retry the affirmation.
-      if (explicitlySafe(input.text)) limitedCrisisMarkers.delete(body.session_id);
-      else return limitedCrisisResponse(body, input.text, started);
+      if (explicitlySafe(input.text)) limitedCrisisMarkers.delete(markerKey(body.session_id, ownerId));
+      else return limitedCrisisResponse(body, input.text, started, ownerId);
     }
     // For any potential crisis follow-up, check existing session context.
     // Do not save a new turn or call the model while the rate limit is active.
     if (body.session_id && !explicitlySafe(input.text) && allowLimitedLookup(callerIp)) {
       try {
-        const existing = await loadSession(body.session_id);
-        if (crisisInContext(input.text, existing)) {
-          rememberLimitedCrisis(body.session_id);
-          return limitedCrisisResponse(body, input.text, started);
+        const existing = identity.enabled ? ownedSession : await loadSession(body.session_id, ownerId);
+        if (crisisInContext(input.text, existing, ownerId)) {
+          rememberLimitedCrisis(body.session_id, ownerId);
+          return limitedCrisisResponse(body, input.text, started, ownerId);
         }
       } catch { /* retain normal rate-limit response if storage is unavailable */ }
     }
@@ -236,32 +296,32 @@ export default async (req, context) => {
   let session = null;
   if (body.session_id != null) {
     try {
-      session = await loadSession(body.session_id);
+      session = identity.enabled ? ownedSession : await loadSession(body.session_id, ownerId);
     } catch (error) {
-      if (showsDistress(input.text) || (hasLimitedCrisisMarker(body.session_id) && !explicitlySafe(input.text))) return limitedCrisisResponse(body, input.text, started);
+      if (showsDistress(input.text) || (hasLimitedCrisisMarker(body.session_id, ownerId) && !explicitlySafe(input.text))) return limitedCrisisResponse(body, input.text, started, ownerId);
       throw error;
     }
   }
   // No id, or an id we've never seen (e.g. after a local restart): start a new chat.
-  session ??= newSession(isValidId(body.session_id) ? body.session_id : crypto.randomUUID());
-  if (explicitlySafe(input.text)) limitedCrisisMarkers.delete(session.id);
+  session ??= newSession(isValidId(body.session_id) ? body.session_id : crypto.randomUUID(), ownerId);
+  if (explicitlySafe(input.text)) limitedCrisisMarkers.delete(markerKey(session.id, ownerId));
 
   // ---- Step 5: cap the conversation length (cost control) -------------------
   const userTurns = session.messages.filter((m) => m.role === "user").length;
   if (userTurns >= MAX_TURNS_PER_SESSION) {
-    if (crisisInContext(input.text, session)) {
+    if (crisisInContext(input.text, session, ownerId)) {
       // Persist only the bounded state flag: never append beyond the turn cap.
       // A storage failure must not prevent the immediate support response.
       if (!hasActiveCrisis(session)) {
         session.crisis_active = true;
         try { await saveSession(session); } catch { /* return support anyway */ }
       }
-      return limitedCrisisResponse(body, input.text, started);
+      return limitedCrisisResponse(body, input.text, started, ownerId);
     }
     if (hasActiveCrisis(session) && explicitlySafe(input.text)) {
       session.crisis_active = false;
       try { await saveSession(session); } catch { /* return support anyway */ }
-      return limitedCrisisResponse(body, input.text, started);
+      return limitedCrisisResponse(body, input.text, started, ownerId);
     }
     return Response.json({ error: "This conversation is full. Please start a new chat." }, { status: 400 });
   }
@@ -274,7 +334,7 @@ export default async (req, context) => {
   const flags = {
     pii_redacted: redacted.found,                     // e.g. ["email", "phone"]
     injection_suspected: looksLikeInjection(input.text), // flagged, NOT blocked
-    distress: crisisInContext(input.text, session), // triggers step 9
+    distress: crisisInContext(input.text, session, ownerId), // triggers step 9
     output_valid: true,                                  // updated in step 8
     dietary_referral: false,
   };
@@ -371,7 +431,7 @@ export default async (req, context) => {
   try {
     await saveSession(session);
   } catch (error) {
-    if (flags.distress) return limitedCrisisResponse(body, input.text, started);
+    if (flags.distress) return limitedCrisisResponse(body, input.text, started, ownerId);
     throw error;
   }
 

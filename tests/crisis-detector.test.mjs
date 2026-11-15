@@ -5,6 +5,7 @@ import { newSession, saveSession, loadSession } from '../netlify/lib/store.mjs';
 import handler from '../netlify/functions/chat/index.mjs';
 
 process.env.QUIET_LOGS = '1';
+process.env.AUTH_PROVIDER = 'off'; // isolated legacy/safety tests, never a deployment default
 
 async function ask(message, { session_id = null, ip = crypto.randomUUID() } = {}) {
   const req = new Request('http://localhost/api/chat', {

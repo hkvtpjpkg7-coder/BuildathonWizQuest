@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WizQuest — Personal Coach</title>
+  <title>WiserWave — Personal Coach</title>
   <!--
     public/index.html: the whole web app in one file.
       <style>  colours (light + dark mode), layout, chat bubbles, test-runner table
@@ -137,6 +137,10 @@
     .req:first-of-type { border-top: 0; }
     .req .desc { white-space: pre-wrap; overflow-wrap: anywhere; }
     .linkish { background: none; border: 0; color: var(--accent); padding: 0; font-weight: 600; }
+    .auth-gate { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: var(--bg); padding: 24px; }
+    .auth-gate[hidden], [hidden] { display: none !important; }
+    .auth-card { width: min(100%, 420px); padding: 28px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); }
+    .auth-account { color: var(--muted); font-size: .85rem; }
     @media (max-width: 760px) {
       .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
       header .btn.ghost { padding: 6px 10px; font-size: 0.85rem; }
@@ -145,12 +149,17 @@
   </style>
 </head>
 <body>
-<div class="app">
+<div id="auth-gate" class="auth-gate" role="region" aria-label="Sign in">
+  <div class="auth-card"><h1>WiserWave</h1><p id="auth-status" role="status">Checking sign-in…</p><button id="auth-login" class="btn" type="button" hidden>Continue with Google</button><p class="privacy-note">Avoid entering sensitive details. WiserWave is a demo and not medical care.</p><p class="privacy-note">If you may be in immediate danger, call emergency services. In the U.S., call or text 988 for the Suicide &amp; Crisis Lifeline. Elsewhere, contact your local emergency services or crisis line.</p></div>
+</div>
+<div class="app" inert>
   <aside>
-    <h1>WizQuest</h1>
+    <h1>WiserWave</h1>
+    <div class="auth-account" id="auth-account"></div>
+    <button class="btn ghost" id="auth-logout" type="button" hidden>Sign out</button>
     <button class="btn" id="new-chat">+ New chat</button>
     <ul id="sessions"></ul>
-    <div class="side-note">No account sign-in yet. Conversations may be saved on the server and can be read by someone with the session ID. This list is kept in this browser.</div>
+    <div class="side-note" id="session-privacy">No account sign-in yet. Conversations may be saved on the server and can be read by someone with the session ID. This list is kept in this browser.</div>
   </aside>
 
   <main>
@@ -223,6 +232,7 @@
   </main>
 </div>
 
+<script src="/auth-bridge.js"></script>
 <script>
   // ===========================================================================
   // The whole front end, in plain JavaScript (no framework, no build step).
@@ -244,6 +254,7 @@
   // A. Helpers
   // ---------------------------------------------------------------------------
   const $ = (id) => document.getElementById(id);
+  const authBridge = globalThis.WiserWaveAuth;
 
   // el("div", {className: "x", textContent: "hi"}, child1, child2) creates an element.
   // We always set text with textContent (never innerHTML), so text from users or
@@ -269,8 +280,16 @@
 
   // Call our backend. Throws an Error with the server's message if it fails.
   async function api(path, opts) {
-    const res = await fetch(path, opts);
+    const version = authBridge?.version;
+    let requestOpts = opts;
+    if (authBridge && (path === '/api/chat' || path.startsWith('/api/session'))) {
+      const token = await authBridge.token();
+      if (version !== authBridge.version) throw new Error('Your sign-in changed. Please try again.');
+      if (token) requestOpts = { ...opts, headers: { ...(opts?.headers || {}), Authorization: `Bearer ${token}` } };
+    }
+    const res = await fetch(path, requestOpts);
     const data = await res.json().catch(() => ({}));
+    if (authBridge && version !== authBridge.version) throw new Error('Your sign-in changed. Please try again.');
     if (!res.ok) {
       const error = new Error(data.error || `HTTP ${res.status}`);
       error.status = res.status;
@@ -298,10 +317,10 @@
   // sessionId is the chat currently on screen (null = a new, unsaved chat).
   // `sessions` is the sidebar list, kept in this browser: [{ id, title, updated }].
   // The messages themselves live on the server, not here.
-  const SESSION_KEY = "wizquest_coach_sessions";
-  const ACTIVE_SESSION_KEY = "wizquest_active_session";
-  let sessions = store.get(SESSION_KEY, []);
-  let sessionId = store.get(ACTIVE_SESSION_KEY, null);
+  let SESSION_KEY = "wizquest_coach_sessions";
+  let ACTIVE_SESSION_KEY = "wizquest_active_session";
+  let sessions = authBridge ? [] : store.get(SESSION_KEY, []);
+  let sessionId = authBridge ? null : store.get(ACTIVE_SESSION_KEY, null);
   let ephemeralSession = false;
   let sending = false;
   let loadingSession = false;
@@ -474,9 +493,30 @@
   });
 
   // Start-up: draw the sidebar and the welcome screen.
-  renderSessions();
-  if (sessionId && sessions.some((s) => s.id === sessionId)) openSession(sessionId);
-  else { sessionId = null; renderEmpty(); }
+  function startSessionList() {
+    renderSessions();
+    if (sessionId && sessions.some((s) => s.id === sessionId)) openSession(sessionId);
+    else { sessionId = null; renderEmpty(); }
+  }
+  if (!authBridge) startSessionList();
+  else authBridge.subscribe((state) => {
+    // Never display another account's sidebar, open transcript, or draft.
+    input.value = ''; ephemeralSession = false;
+    if (state.mode === 'off' || state.mode === 'signed-in') {
+      const suffix = state.mode === 'signed-in' ? ':firebase:' + encodeURIComponent(state.user.uid) : '';
+      SESSION_KEY = 'wizquest_coach_sessions' + suffix;
+      ACTIVE_SESSION_KEY = 'wizquest_active_session' + suffix;
+      sessions = store.get(SESSION_KEY, []);
+      sessionId = store.get(ACTIVE_SESSION_KEY, null);
+      $('session-privacy').textContent = state.mode === 'signed-in'
+        ? 'Signed in. Conversation access is limited to your account. This list is kept in this browser. Avoid sensitive details.'
+        : 'No account sign-in yet. Anyone with a conversation ID can read that conversation. This list is kept in this browser.';
+      startSessionList();
+    } else {
+      sessions = []; sessionId = null;
+      renderSessions(); renderEmpty();
+    }
+  });
 
   // ---------------------------------------------------------------------------
   // F. Test runner (FLOW 7). Same logic as scripts/run-tests.mjs, in the browser.

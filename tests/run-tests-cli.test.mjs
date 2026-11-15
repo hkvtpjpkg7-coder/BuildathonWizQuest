@@ -14,7 +14,7 @@ function runCSV(csv, ...args) {
     const input = join(dir, 'cases.csv');
     writeFileSync(input, csv);
     return spawnSync(process.execPath, ['scripts/run-tests.mjs', '--tests', input, ...args], {
-      cwd: root, encoding: 'utf8', env: { ...process.env, LLM_PROVIDER: 'mock' }, timeout: 20000,
+      cwd: root, encoding: 'utf8', env: { ...process.env, LLM_PROVIDER: 'mock', AUTH_PROVIDER: 'off' }, timeout: 20000,
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

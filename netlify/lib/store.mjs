@@ -21,6 +21,8 @@
 // }
 // =============================================================================
 
+import { createHash } from 'node:crypto';
+
 const memory = new Map(); // fallback store: id -> session
 let blobs;                // undefined = not checked yet, null = not available, otherwise the Blobs store
 
@@ -44,24 +46,33 @@ export async function storageKind() {
 }
 
 // Get a chat by id. Returns null if it doesn't exist.
-export async function loadSession(id) {
+// Authenticated records use a distinct key space; old ownerless conversations
+// are never silently attached to a user who happens to know their identifier.
+function storageKey(id, ownerId) {
+  return ownerId ? `user-${createHash('sha256').update(ownerId).digest('hex')}-${id}` : id;
+}
+
+export async function loadSession(id, ownerId = null) {
   const store = await blobStore();
-  if (store) return (await store.get(id, { type: "json" })) ?? null;
-  return memory.get(id) ?? null;
+  const key = storageKey(id, ownerId);
+  const session = store ? (await store.get(key, { type: "json" })) ?? null : memory.get(key) ?? null;
+  if (ownerId && session?.owner_id !== ownerId) return null;
+  return session;
 }
 
 // Save (create or overwrite) a chat.
 export async function saveSession(session) {
   session.updated_at = new Date().toISOString();
   const store = await blobStore();
-  if (store) await store.setJSON(session.id, session);
-  else memory.set(session.id, structuredClone(session)); // copy, so later edits don't leak in
+  const key = storageKey(session.id, session.owner_id);
+  if (store) await store.setJSON(key, session);
+  else memory.set(key, structuredClone(session)); // copy, so later edits don't leak in
 }
 
 // An empty chat with the given id.
-export function newSession(id) {
+export function newSession(id, ownerId = null) {
   const now = new Date().toISOString();
-  return { id, created_at: now, updated_at: now, title: "", messages: [] };
+  return { id, ...(ownerId && { owner_id: ownerId }), created_at: now, updated_at: now, title: "", messages: [] };
 }
 
 // Only accept real UUIDs as ids (e.g. "3f2b6c1e-8d4a-4b7e-9c1d-2a5e6f7a8b9c").

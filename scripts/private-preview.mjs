@@ -6,11 +6,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import chat from '../netlify/functions/chat/index.mjs';
 import session from '../netlify/functions/session/index.mjs';
+import authConfig from '../netlify/functions/auth-config/index.mjs';
 
 const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/auth-bridge.js', ['auth-bridge.js', 'text/javascript; charset=utf-8']],
   ['/data/coach_tests.csv', ['data/coach_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/sample_tests.csv', ['data/sample_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/demo_tests.csv', ['data/demo_tests.csv', 'text/csv; charset=utf-8']],
@@ -21,7 +23,7 @@ const securityHeaders = {
   'x-content-type-options': 'nosniff',
   'x-frame-options': 'DENY',
   'referrer-policy': 'strict-origin-when-cross-origin',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.firebaseapp.com; frame-src https://*.firebaseapp.com https://accounts.google.com",
 };
 const jsonError = (status, error) => Response.json({ error }, { status, headers: securityHeaders });
 
@@ -29,6 +31,7 @@ const jsonError = (status, error) => Response.json({ error }, { status, headers:
 export async function routePreview(req, { chatHandler = chat, sessionHandler = session } = {}) {
   const url = new URL(req.url);
   const path = url.pathname;
+  if (path === '/api/auth/config') return authConfig(req);
   if (path === '/api/chat') {
     if (req.method !== 'POST') return jsonError(405, 'Use POST');
     if (!/^application\/json(?:\s*;|$)/i.test(req.headers.get('content-type') || '')) {
@@ -70,6 +73,7 @@ if (isMain) {
       const method = incoming.method || 'GET';
       const headers = new Headers();
       if (incoming.headers['content-type']) headers.set('content-type', incoming.headers['content-type']);
+      if (incoming.headers.authorization) headers.set('authorization', incoming.headers.authorization);
       const init = { method, headers };
       if (method !== 'GET' && method !== 'HEAD') init.body = Buffer.concat(chunks);
       const result = await routePreview(new Request(`http://127.0.0.1:8890${target}`, init));

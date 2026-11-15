@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import handler from '../netlify/functions/chat/index.mjs';
 
 process.env.QUIET_LOGS = '1';
+process.env.AUTH_PROVIDER = 'off'; // isolated test process
 
 async function send(message, session_id) {
   const req = new Request('http://localhost/api/chat', {
