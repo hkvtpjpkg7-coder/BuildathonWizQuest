@@ -7,7 +7,7 @@
   <!--
     public/index.html: the whole web app in one file.
       <style>  colours (light + dark mode), layout, chat bubbles, test-runner table
-      <body>   sidebar (chat list) · tabs · Chat view · Test runner view
+      <body>   sidebar (chat list) · tabs · Chat view · Mentor view (prototype) · Test runner view
       <script> all the behaviour, see the section map at the top of the script
     Netlify serves this file as-is; there's no build step.
     To rebrand your bot: change the <title>, the <h1> in the sidebar, and
@@ -106,6 +106,37 @@
     .verdict.none { color: var(--muted); background: var(--bg); border: 1px solid var(--border); }
     .why { margin-top: 6px; font-size: 0.78rem; color: var(--muted); max-width: 220px; }
     code { font-size: 0.85em; }
+    /* Mentor (prototype, sample data) */
+    #mentor { padding: 20px 16px; overflow-y: auto; }
+    .mentor-wrap { max-width: 860px; margin: 0 auto; }
+    .notice { background: var(--warn-bg); color: var(--text); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.88rem; }
+    .notice b { color: var(--warn); }
+    .notice p { margin: 0; }
+    .notice p + p { margin-top: 6px; }
+    .subnav { display: flex; gap: 4px; margin-bottom: 14px; }
+    .subnav button { background: transparent; border: 1px solid transparent; padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; }
+    .subnav button[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--border); }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; }
+    .chips button { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 5px 12px; font-size: 0.86rem; }
+    .chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .mentor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .mentor-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .mentor-card h3, .mentor-profile h2 { margin: 0; font-size: 1.02rem; }
+    .mentor-card p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+    .mentor-card .btn { align-self: flex-start; margin-top: auto; }
+    .sample { font-size: 0.72rem; font-weight: 700; text-transform: none; padding: 1px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); margin-left: 6px; vertical-align: 2px; }
+    .mentor-profile .intro { margin: 10px 0; }
+    .field { display: grid; gap: 4px; margin-top: 12px; }
+    .field label { font-weight: 600; font-size: 0.9rem; }
+    .field select, .field textarea { padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font: inherit; }
+    .field textarea { resize: vertical; min-height: 84px; }
+    .count { color: var(--muted); font-size: 0.78rem; justify-self: end; }
+    .done-box { background: var(--pass-bg); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
+    .done-box p { margin: 0 0 8px; }
+    .req { border-top: 1px solid var(--border); padding: 12px 0; display: grid; gap: 4px; }
+    .req:first-of-type { border-top: 0; }
+    .req .desc { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .linkish { background: none; border: 0; color: var(--accent); padding: 0; font-weight: 600; }
     @media (max-width: 760px) {
       .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
       header .btn.ghost { padding: 6px 10px; font-size: 0.85rem; }
@@ -126,7 +157,7 @@
     <header>
       <div class="tabs">
         <button class="on" data-view="chat">Personal Coach</button>
-        <button type="button" disabled title="Not available yet">Mentor · coming later</button>
+        <button data-view="mentor">Mentor · prototype</button>
         <button data-view="tests">Test runner</button>
       </div>
       <button class="btn ghost" id="dl-json" disabled>Download JSON</button>
@@ -143,6 +174,23 @@
         </div>
         <p class="privacy-note">Avoid names and sensitive details. Your messages may be sent to the configured AI provider and saved on the server. AI can make mistakes and is not medical care.</p>
       </form>
+    </section>
+
+    <!-- ===== Mentor view (prototype: fictional sample mentors, requests kept in page memory only) ===== -->
+    <section class="view" id="view-mentor">
+      <div id="mentor">
+        <div class="mentor-wrap">
+          <div class="notice" role="note">
+            <p><b>Prototype with sample data.</b> These mentors are fictional and requests are not sent to anyone. No mentor is available through this page and no session can be booked yet.</p>
+            <p>Mentoring is not emergency or clinical care. If you might be in danger, call emergency services now. In the US you can call or text 988 (Suicide &amp; Crisis Lifeline); elsewhere, findahelpline.com lists free local services.</p>
+          </div>
+          <div class="subnav" role="group" aria-label="Mentor sections">
+            <button type="button" id="mentor-nav-browse" aria-pressed="true">Browse mentors</button>
+            <button type="button" id="mentor-nav-requests" aria-pressed="false">My requests</button>
+          </div>
+          <div id="mentor-root" aria-live="polite"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== Test runner view ===== -->
@@ -710,6 +758,206 @@
       stat(stopped, "stopped"),
     );
   }
+</script>
+<script>
+  // ===========================================================================
+  // Mentor: a prototype of the human-mentor journey (browse → profile → request
+  // → My requests). Everything here is SAMPLE DATA kept in this page's memory:
+  //   - the mentors are fictional;
+  //   - requests are never sent, emailed, scheduled or saved (no fetch, no
+  //     localStorage), and disappear when the page is reloaded;
+  //   - nothing from the Personal Coach conversation is read or carried over.
+  // It runs in its own <script> so the Personal Coach script is unchanged.
+  // ===========================================================================
+  (() => {
+    const TOPICS = [
+      { id: "work-stress", label: "Work stress" },
+      { id: "relationships", label: "Relationships" },
+      { id: "meditation", label: "Meditation practice" },
+      { id: "growth", label: "Personal growth" },
+    ];
+    const topicLabel = (id) => TOPICS.find((t) => t.id === id)?.label ?? id;
+
+    // Fictional sample profiles. Not real people; no credentials are claimed.
+    const MENTORS = [
+      { id: "sample-mira", name: "Mira", topics: ["work-stress", "meditation"],
+        summary: "Short, practical pauses for busy working days.",
+        intro: "Hello, I'm Mira, a sample mentor. In a real version, this is where I'd say how I like to help people notice a busy mind at work and make room for a few quiet minutes in the day." },
+      { id: "sample-arun", name: "Arun", topics: ["relationships", "growth"],
+        summary: "Listening well, and growing through everyday relationships.",
+        intro: "Hi, I'm Arun, a sample mentor. A real profile would describe how I talk with people about family, friends and colleagues, and how small changes in how we listen can help." },
+      { id: "sample-leela", name: "Leela", topics: ["meditation", "growth"],
+        summary: "Building a steady meditation habit, one day at a time.",
+        intro: "Namaste, I'm Leela, a sample mentor. In a real version I'd share how I support people who want to start meditating regularly, or come back to a practice that has lapsed." },
+      { id: "sample-dev", name: "Dev", topics: ["work-stress", "relationships"],
+        summary: "Finding balance between work and the people who matter.",
+        intro: "Hi, I'm Dev, a sample mentor. A real profile would explain how I help people think through pressure at work and its effect on home life." },
+      { id: "sample-sana", name: "Sana", topics: ["growth", "meditation", "work-stress"],
+        summary: "Setting gentle goals and keeping them.",
+        intro: "Hello, I'm Sana, a sample mentor. In a real version this introduction would describe how I help people choose one small goal for their well-being and follow it through." },
+    ];
+
+    const MAX_DESCRIPTION = 300;
+    const state = { topic: "all", screen: "browse", mentorId: null, lastRequest: null, requests: [], nextId: 1 };
+
+    const filterMentors = (topic) => topic === "all" ? MENTORS.slice() : MENTORS.filter((m) => m.topics.includes(topic));
+
+    // Build a sample request. It is only ever added to state.requests (page memory).
+    function createRequest(mentorId, topicId, description = "") {
+      const mentor = MENTORS.find((m) => m.id === mentorId);
+      if (!mentor) throw new Error("Unknown sample mentor.");
+      if (!mentor.topics.includes(topicId)) throw new Error("Choose one of this mentor's areas of focus.");
+      const text = String(description).trim();
+      if (text.length > MAX_DESCRIPTION) throw new Error(`Keep the description under ${MAX_DESCRIPTION} characters.`);
+      return { id: "sample-request-" + state.nextId++, mentorId, mentorName: mentor.name, topic: topicId,
+        description: text, createdAt: new Date().toISOString(), status: "Prototype only: not sent", sample: true };
+    }
+    function submitRequest(mentorId, topicId, description) {
+      const r = createRequest(mentorId, topicId, description);
+      state.requests.unshift(r); state.lastRequest = r; return r;
+    }
+
+    // Exposed for tests and debugging only.
+    globalThis.WizMentor = { TOPICS, MENTORS, MAX_DESCRIPTION, filterMentors, createRequest, submitRequest, requests: () => state.requests.slice() };
+
+    const root = document.getElementById("mentor-root");
+    if (!root || typeof root.replaceChildren !== "function" || !document.body) return;
+
+    const h = (tag, props = {}, ...kids) => {
+      const e = document.createElement(tag);
+      for (const [k, v] of Object.entries(props)) {
+        if (k.startsWith("aria-") || k === "role" || k === "for") e.setAttribute(k, v);
+        else e[k] = v;
+      }
+      e.append(...kids.filter((k) => k != null)); return e;
+    };
+    const sampleTag = () => h("span", { className: "sample", textContent: "Sample" });
+    const topicTags = (ids) => h("div", { className: "meta" }, ...ids.map((id) => h("span", { className: "tag", textContent: topicLabel(id) })));
+    const navBrowse = document.getElementById("mentor-nav-browse"), navReq = document.getElementById("mentor-nav-requests");
+
+    function go(screen, extra = {}) {
+      Object.assign(state, { screen }, extra);
+      navBrowse.setAttribute("aria-pressed", String(screen !== "requests"));
+      navReq.setAttribute("aria-pressed", String(screen === "requests"));
+      navReq.textContent = state.requests.length ? `My requests (${state.requests.length})` : "My requests";
+      render();
+      document.getElementById("mentor")?.scrollTo?.(0, 0);
+      // The previous screen's focused control may have been removed by render.
+      // Move focus into the new screen so keyboard users can continue there.
+      const heading = root.querySelector("h2");
+      if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+    }
+    navBrowse.addEventListener("click", () => go("browse"));
+    navReq.addEventListener("click", () => go("requests"));
+
+    function render() {
+      if (state.screen === "profile") return root.replaceChildren(profileView());
+      if (state.screen === "request") return root.replaceChildren(requestView());
+      if (state.screen === "requests") return root.replaceChildren(requestsView());
+      root.replaceChildren(browseView());
+    }
+
+    function browseView() {
+      const chips = h("div", { className: "chips", role: "group", "aria-label": "Filter by topic" },
+        ...[{ id: "all", label: "All topics" }, ...TOPICS].map((t) => {
+          const b = h("button", { type: "button", textContent: t.label, "aria-pressed": String(state.topic === t.id) });
+          b.setAttribute("data-mentor-topic-filter", t.id);
+          b.addEventListener("click", () => {
+            state.topic = t.id;
+            render();
+            // Render replaces the clicked filter, so restore focus to its replacement.
+            root.querySelector(`[data-mentor-topic-filter="${t.id}"]`)?.focus();
+          });
+          return b;
+        }));
+      const list = filterMentors(state.topic);
+      const grid = h("div", { className: "mentor-grid" }, ...list.map((m) => {
+        const open = h("button", { type: "button", className: "btn ghost", textContent: "View profile" });
+        open.setAttribute("aria-label", `View sample profile: ${m.name}`);
+        open.addEventListener("click", () => go("profile", { mentorId: m.id }));
+        return h("article", { className: "mentor-card" }, h("h3", {}, m.name, sampleTag()), h("p", { textContent: m.summary }), topicTags(m.topics), open);
+      }));
+      return h("div", {}, h("h2", { textContent: "Sample mentors" }), h("p", { className: "hint", textContent: `Showing ${list.length} fictional sample ${list.length === 1 ? "mentor" : "mentors"}.` }), chips, grid);
+    }
+
+    function back(label, screen) {
+      const b = h("button", { type: "button", className: "linkish", textContent: "← " + label });
+      b.addEventListener("click", () => go(screen));
+      return h("p", {}, b);
+    }
+
+    function profileView() {
+      const m = MENTORS.find((x) => x.id === state.mentorId);
+      const start = h("button", { type: "button", className: "btn", textContent: "Start a sample request" });
+      start.addEventListener("click", () => go("request", { lastRequest: null }));
+      return h("div", {}, back("All mentors", "browse"),
+        h("div", { className: "card mentor-profile" },
+          h("h2", {}, m.name, sampleTag()),
+          h("p", { className: "hint", textContent: "Fictional profile for this prototype. Not a real person." }),
+          h("p", { className: "hint", textContent: "Sample introduction" }),
+          h("p", { className: "intro", textContent: m.intro }),
+          h("p", { className: "hint", textContent: "Areas of focus" }), topicTags(m.topics),
+          h("div", { className: "row" }, start)));
+    }
+
+    function requestView() {
+      const m = MENTORS.find((x) => x.id === state.mentorId);
+      if (state.lastRequest) {
+        const toList = h("button", { type: "button", className: "btn", textContent: "See My requests" });
+        toList.addEventListener("click", () => go("requests"));
+        const more = h("button", { type: "button", className: "btn ghost", textContent: "Back to mentors" });
+        more.addEventListener("click", () => go("browse"));
+        return h("div", {}, h("div", { className: "card" },
+          h("h2", { textContent: "Sample request saved" }),
+          h("div", { className: "done-box", role: "status" },
+            h("p", {}, h("b", { textContent: "Prototype only: this request has not been sent." })),
+            h("p", { textContent: `It is kept on this page as a sample request to ${m.name}. No mentor has been contacted and no session is booked. It disappears when you reload or close the page.` })),
+          h("div", { className: "row" }, toList, more)));
+      }
+      const select = h("select", { id: "mentor-topic", required: true },
+        ...m.topics.map((id) => h("option", { value: id, textContent: topicLabel(id) })));
+      const text = h("textarea", { id: "mentor-desc", maxLength: MAX_DESCRIPTION, rows: 4, placeholder: "Optional: a sentence or two about what you'd like to talk about" });
+      const count = h("span", { className: "count", textContent: `0 / ${MAX_DESCRIPTION}` });
+      text.addEventListener("input", () => { count.textContent = `${text.value.length} / ${MAX_DESCRIPTION}`; });
+      const err = h("p", { className: "err", role: "alert" });
+      const submit = h("button", { type: "submit", className: "btn", textContent: "Save sample request" });
+      const form = h("form", { className: "card", noValidate: true },
+        h("h2", {}, `Sample request to ${m.name}`, sampleTag()),
+        h("p", { className: "hint", textContent: "This prototype does not send anything. Your Personal Coach conversation is not shared with Mentor." }),
+        h("div", { className: "field" }, h("label", { for: "mentor-topic", textContent: "Topic" }), select),
+        h("div", { className: "field" }, h("label", { for: "mentor-desc", textContent: "Short description (optional)" }), text, count),
+        h("p", { className: "hint", textContent: "Please don't enter names, health details or other sensitive personal information." }),
+        err, h("div", { className: "row" }, submit));
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        try { submitRequest(m.id, select.value, text.value); go("request"); }
+        catch (x) { err.textContent = x.message; }
+      });
+      return h("div", {}, back(`${m.name}'s profile`, "profile"), form);
+    }
+
+    function requestsView() {
+      const body = state.requests.length
+        ? state.requests.map((r) => {
+            const remove = h("button", { type: "button", className: "linkish", textContent: "Remove" });
+            remove.setAttribute("aria-label", `Remove sample request to ${r.mentorName}`);
+            remove.addEventListener("click", () => { state.requests = state.requests.filter((x) => x.id !== r.id); go("requests"); });
+            return h("div", { className: "req" },
+              h("div", {}, h("b", { textContent: `${topicLabel(r.topic)} · ${r.mentorName}` }), sampleTag()),
+              h("div", { className: "meta" }, h("span", { className: "tag DECLINE", textContent: r.status })),
+              r.description ? h("div", { className: "desc", textContent: r.description }) : null,
+              h("div", { className: "muted-small", textContent: "Created " + new Date(r.createdAt).toLocaleString() }),
+              h("div", {}, remove));
+          })
+        : [h("p", { className: "hint", textContent: "No sample requests yet. Browse the sample mentors to try the flow." })];
+      return h("div", { className: "card" },
+        h("h2", { textContent: "My requests" }),
+        h("p", { className: "hint", textContent: "Sample requests for this prototype session only. They are not sent to anyone and disappear when you reload or close the page." }),
+        ...body);
+    }
+
+    render();
+  })();
 </script>
 </body>
 </html>
