@@ -4,6 +4,31 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WiserWave — Personal Coach</title>
+  <script>
+    // Set the theme before painting to avoid a flash on reload or sign-in.
+    (() => {
+      const valid = ['light', 'dark', 'colorful'];
+      let theme;
+      try { theme = localStorage.getItem('wiserwave_theme'); } catch {}
+      if (!valid.includes(theme)) {
+        theme = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      document.documentElement.dataset.theme = theme;
+      document.addEventListener('DOMContentLoaded', () => {
+        const controls = document.querySelectorAll('[data-theme-selector]');
+        controls.forEach((control) => {
+          control.value = theme;
+          control.addEventListener('change', () => {
+            if (!valid.includes(control.value)) return;
+            theme = control.value;
+            document.documentElement.dataset.theme = theme;
+            try { localStorage.setItem('wiserwave_theme', theme); } catch {}
+            controls.forEach((other) => { other.value = theme; });
+          });
+        });
+      });
+    })();
+  </script>
   <!--
     public/index.html: the whole web app in one file.
       <style>  colours (light + dark mode), layout, chat bubbles, test-runner table
@@ -19,12 +44,10 @@
       --accent: #245c4b; --user: #e4eee4; --ok: #1d7a46; --ok-bg: #e6f4ec; --bad: #b8332a; --bad-bg: #fbeae8;
       --warn: #8a5a00; --warn-bg: #fdf3dc; --pass: #1f5fbf; --pass-bg: #e6eefc;
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
+    :root[data-theme="dark"] {
         --bg: #121417; --panel: #1a1d21; --side: #16191c; --text: #e9ebee; --muted: #9aa0a8; --border: #2c3036;
         --accent: #6b9cf0; --user: #1f2c44; --ok: #5fc98b; --ok-bg: #16281e; --bad: #f07b70; --bad-bg: #2e1a18;
         --warn: #f0c060; --warn-bg: #2d2412; --pass: #8fb4ff; --pass-bg: #18243a;
-      }
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
@@ -187,6 +210,10 @@
     .tabs button { padding: 9px 13px; font-size: .86rem; border: 1px solid transparent; }
     .tabs button.on { background: #e6f0e8; color: #204e42; border-color: transparent; }
     header .btn.ghost { padding: 8px 11px; font-size: .76rem; }
+    .theme-control { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .76rem; font-weight: 650; white-space: nowrap; }
+    .theme-control select { appearance: auto; min-height: 38px; padding: 6px 26px 6px 9px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+    .auth-card .theme-control { display: flex; justify-content: space-between; margin-top: 18px; }
+    .auth-card .theme-control select { min-width: 130px; }
     #messages { min-height: 0; padding: 30px 24px; scroll-padding-block: 20px; overscroll-behavior: contain; }
     .thread { max-width: 800px; gap: 16px; padding-bottom: 14px; }
     .empty { max-width: 690px; margin: clamp(18px, 5vh, 55px) auto 0; }
@@ -220,23 +247,38 @@
     .auth-card #auth-login { width: 100%; min-height: 48px; }
     .auth-card .privacy-note:first-of-type { margin-top: 24px; }
     .auth-card .privacy-note { font-size: .75rem; }
-    @media (prefers-color-scheme: dark) {
-      :root { color-scheme: dark; --bg: #14211d; --panel: #1d3029; --side: #192a23; --text: #edf5ed; --muted: #b4c8bb; --border: #3a5144; --accent: #b1dec4; --user: #2d5141; --shadow: 0 14px 38px rgba(0,0,0,.2); }
-      aside { background: #192a23; }
-      .brand-mark { background: #b1dec4; color: #193a2d; }
-      .btn, .chips button[aria-pressed="true"] { color: #18372c; }
-      .btn:not(:disabled):hover { background: #c7ead5; }
-      .btn.ghost { color: var(--text); }
-      main { background: radial-gradient(ellipse at 54% 14%, #21372a 0, transparent 45%), var(--bg); }
-      header { background: rgba(29, 48, 41, .85); }
-      .tabs button.on { background: #365646; color: #eff8ef; }
-      .empty-orb { color: #c4e7cf; background: #2d4c39; border-color: #42614a; }
-      .eyebrow { color: #b1dec4; }
-      .starters button:hover { background: #2b4537; border-color: #719d7c; }
-      .composer-inner { border-color: var(--border); }
-      .auth-gate { background: radial-gradient(ellipse at 50% 20%, #294033 0%, #14211d 62%); }
-      .auth-card { border-color: var(--border); }
-    }
+    :root[data-theme="dark"] { color-scheme: dark; --bg: #14211d; --panel: #1d3029; --side: #192a23; --text: #edf5ed; --muted: #b4c8bb; --border: #3a5144; --accent: #b1dec4; --user: #2d5141; --shadow: 0 14px 38px rgba(0,0,0,.2); }
+    :root[data-theme="dark"] aside { background: #192a23; }
+    :root[data-theme="dark"] .brand-mark { background: #b1dec4; color: #193a2d; }
+    :root[data-theme="dark"] .btn, :root[data-theme="dark"] .chips button[aria-pressed="true"] { color: #18372c; }
+    :root[data-theme="dark"] .btn:not(:disabled):hover { background: #c7ead5; }
+    :root[data-theme="dark"] .btn.ghost { color: var(--text); }
+    :root[data-theme="dark"] .btn.ghost:not(:disabled):hover { background: #2b4537; }
+    :root[data-theme="dark"] main { background: radial-gradient(ellipse at 54% 14%, #21372a 0, transparent 45%), var(--bg); }
+    :root[data-theme="dark"] header { background: rgba(29, 48, 41, .85); }
+    :root[data-theme="dark"] .tabs button.on { background: #365646; color: #eff8ef; }
+    :root[data-theme="dark"] .empty-orb { color: #c4e7cf; background: #2d4c39; border-color: #42614a; }
+    :root[data-theme="dark"] .eyebrow { color: #b1dec4; }
+    :root[data-theme="dark"] .starters button:hover { background: #2b4537; border-color: #719d7c; }
+    :root[data-theme="dark"] .composer-inner { border-color: var(--border); }
+    :root[data-theme="dark"] .auth-gate { background: radial-gradient(ellipse at 50% 20%, #294033 0%, #14211d 62%); }
+    :root[data-theme="dark"] .auth-card { border-color: var(--border); }
+
+    /* Colorful keeps the same calm layout with a brighter, warm palette. */
+    :root[data-theme="colorful"] { color-scheme: light; --bg: #fff8ee; --panel: #fffefa; --side: #e9efff; --text: #282452; --muted: #514d70; --border: #d8d8ef; --accent: #5942a6; --user: #e5ecff; --shadow: 0 14px 38px rgba(76, 58, 126, .1); }
+    :root[data-theme="colorful"] aside { background: linear-gradient(180deg, #e6eeff 0%, #f7ecf5 100%); }
+    :root[data-theme="colorful"] .brand-mark { background: #5942a6; color: #fff; }
+    :root[data-theme="colorful"] main { background: radial-gradient(ellipse at 54% 14%, #fff0de 0, transparent 46%), var(--bg); }
+    :root[data-theme="colorful"] header { background: rgba(255, 254, 250, .84); }
+    :root[data-theme="colorful"] .tabs button.on { background: #e8e5fa; color: #3c2d7a; }
+    :root[data-theme="colorful"] .empty-orb { color: #573a9c; background: #efe4ff; border-color: #dbcaf2; }
+    :root[data-theme="colorful"] .eyebrow { color: #704296; }
+    :root[data-theme="colorful"] .btn:not(:disabled):hover { background: #42317e; }
+    :root[data-theme="colorful"] .btn.ghost:not(:disabled):hover { background: #efeafa; }
+    :root[data-theme="colorful"] .starters button:hover { background: #f7f2ff; border-color: #b5a5dc; }
+    :root[data-theme="colorful"] .composer-inner { border-color: var(--border); }
+    :root[data-theme="colorful"] .auth-gate { background: radial-gradient(ellipse at 50% 20%, #f6e3ff 0%, #fff8ee 65%); }
+    :root[data-theme="colorful"] .auth-card { border-color: var(--border); }
     @media (max-width: 760px) {
       .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100dvh; }
       aside { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 10px; align-items: center; max-height: 23vh; overflow: auto; padding: 10px 14px; }
@@ -256,6 +298,7 @@
       .tabs { width: 100%; }
       .tabs button { padding: 8px 9px; font-size: .78rem; }
       header .btn.ghost { font-size: .7rem; }
+      header .theme-control { margin-left: auto; }
       #messages { padding: 14px 16px; }
       .empty { margin-top: 10px; }
       .empty-orb { width: 44px; height: 44px; margin-bottom: 11px; border-radius: 16px; font-size: 1.4rem; }
@@ -278,6 +321,7 @@
     <p class="auth-intro">A little space<br>to find your calm.</p>
     <p id="auth-status" role="status">Checking sign-in…</p>
     <button id="auth-login" class="btn" type="button" hidden>Continue with Google</button>
+    <label class="theme-control"><span>Theme</span><select data-theme-selector aria-label="Choose appearance"><option value="light">Light</option><option value="dark">Dark</option><option value="colorful">Colorful</option></select></label>
     <p class="privacy-note">Avoid entering sensitive details. WiserWave is a demo and not medical care.</p>
     <p class="privacy-note">If you may be in immediate danger, call emergency services. In the U.S., call or text 988 for the Suicide &amp; Crisis Lifeline. Elsewhere, contact your local emergency services or crisis line.</p>
   </div>
@@ -302,6 +346,7 @@
       </div>
       <button class="btn ghost" id="dl-json" disabled>Download JSON</button>
       <button class="btn ghost" id="dl-csv" disabled>Download CSV</button>
+      <label class="theme-control"><span>Theme</span><select data-theme-selector aria-label="Choose appearance"><option value="light">Light</option><option value="dark">Dark</option><option value="colorful">Colorful</option></select></label>
     </header>
 
     <!-- ===== Chat view ===== -->
