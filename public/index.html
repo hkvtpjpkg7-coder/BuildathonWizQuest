@@ -146,18 +146,149 @@
       header .btn.ghost { padding: 6px 10px; font-size: 0.85rem; }
       aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 34vh; }
     }
+
+    /* WiserWave's calm, readable shell. The controls and their behavior remain
+       shared by the coach, the sample mentor flow, and the test runner. */
+    :root {
+      color-scheme: light;
+      --bg: #f7f7f1; --panel: #fffefa; --side: #eef2e9;
+      --text: #173d35; --muted: #536e64; --border: #d9e3d8;
+      --accent: #22594d; --user: #dfeee6;
+      --shadow: 0 14px 38px rgba(34, 66, 53, .07);
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+    button, a, textarea, select, input { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 3px solid #cb895a; outline-offset: 3px;
+    }
+    .app { grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
+    aside { padding: 24px 16px 18px; gap: 12px; background: linear-gradient(180deg, #eaf1e8 0%, #f2f5ed 100%); }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 3px 12px; }
+    .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; flex: none; border-radius: 13px; background: #245b4d; color: #e9f4e9; }
+    .brand-mark svg { width: 25px; height: 25px; }
+    .brand-copy { min-width: 0; }
+    aside .brand h1 { margin: 0; font-size: 1.14rem; letter-spacing: -.045em; line-height: 1.1; }
+    .brand-subtitle { display: block; margin-top: 4px; color: var(--muted); font-size: .67rem; font-weight: 650; letter-spacing: .075em; text-transform: uppercase; }
+    .auth-account { overflow-wrap: anywhere; padding: 0 4px; font-size: .78rem; }
+    aside #auth-logout { align-self: flex-start; padding: 4px 10px; font-size: .78rem; }
+    aside #new-chat { width: 100%; text-align: left; padding: 11px 14px; }
+    .side-label { margin: 13px 6px 0; color: var(--muted); font-size: .66rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    #sessions { gap: 3px; }
+    #sessions button { padding: 10px 11px; font-size: .86rem; }
+    #sessions button.active { box-shadow: 0 1px 3px rgba(26, 60, 47, .06); font-weight: 650; }
+    .side-note { border-top: 1px solid var(--border); padding: 13px 5px 0; font-size: .72rem; line-height: 1.5; }
+    .btn { border-radius: 10px; padding: 10px 15px; letter-spacing: -.01em; transition: background .15s, box-shadow .15s; }
+    .btn:not(:disabled):hover { background: #17493d; }
+    .btn.ghost { background: transparent; color: var(--text); }
+    .btn.ghost:not(:disabled):hover { background: var(--panel); }
+    main { background: radial-gradient(ellipse at 54% 14%, #eef5eb 0, transparent 39%), var(--bg); }
+    header { min-height: 72px; padding: 14px 28px; background: rgba(255, 254, 250, .72); gap: 8px; }
+    .tabs { gap: 5px; flex-wrap: wrap; }
+    .tabs button { padding: 9px 13px; font-size: .86rem; border: 1px solid transparent; }
+    .tabs button.on { background: #e6f0e8; color: #204e42; border-color: transparent; }
+    header .btn.ghost { padding: 8px 11px; font-size: .76rem; }
+    #messages { min-height: 0; padding: 30px 24px; scroll-padding-block: 20px; overscroll-behavior: contain; }
+    .thread { max-width: 800px; gap: 16px; padding-bottom: 14px; }
+    .empty { max-width: 690px; margin: clamp(18px, 5vh, 55px) auto 0; }
+    .empty-orb { width: 72px; height: 72px; display: grid; place-items: center; margin: 0 auto 22px; color: #266351; background: #e2efe2; border: 1px solid #d2e5d4; border-radius: 24px; font-family: Georgia, serif; font-size: 2rem; }
+    .eyebrow { color: #527e6e; font-size: .68rem; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+    .empty h2 { margin: 10px 0 12px; color: var(--text); font-family: Georgia, "Times New Roman", serif; font-size: clamp(2rem, 4vw, 3.1rem); font-weight: 400; letter-spacing: -.045em; line-height: 1.12; }
+    .empty-copy { max-width: 515px; margin: 0 auto; font-size: .96rem; line-height: 1.7; }
+    .starter-label { margin: 30px 0 0; color: var(--muted); font-size: .69rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+    .starters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+    .starters button { border-radius: 12px; padding: 11px 14px; text-align: left; line-height: 1.4; box-shadow: 0 3px 12px rgba(31, 65, 49, .04); }
+    .starters button:hover { border-color: #aac9b4; background: #f8fcf7; }
+    .msg { padding: 15px 18px; border-radius: 16px; line-height: 1.65; }
+    .msg.user { border-radius: 16px 16px 4px 16px; }
+    .msg.assistant { border-radius: 16px 16px 16px 4px; box-shadow: 0 5px 20px rgba(32, 65, 49, .035); }
+    .meta { margin-top: 12px; }
+    form#composer { flex: none; padding: 12px 24px 18px; }
+    .composer-inner { max-width: 800px; align-items: stretch; padding: 6px; background: var(--panel); border: 1px solid #cfddd0; border-radius: 16px; box-shadow: var(--shadow); }
+    #input { min-width: 0; min-height: 48px; padding: 12px; border: 0; background: transparent; }
+    #send { align-self: end; min-width: 72px; min-height: 46px; border-radius: 11px; }
+    .privacy-note { max-width: 800px; margin: 10px auto 0; line-height: 1.45; }
+    #mentor, #tests { padding: 28px 24px; }
+    .card, .mentor-card { border-radius: 16px; box-shadow: 0 5px 22px rgba(32, 65, 49, .04); }
+    .card { padding: 22px; }
+    .notice { border: 1px solid rgba(176, 134, 57, .16); }
+    .auth-gate { overflow-y: auto; background: radial-gradient(ellipse at 50% 20%, #e6f2e5 0%, #f7f7f1 58%); }
+    .auth-card { width: min(100%, 450px); padding: 36px; border-color: #dde9dc; border-radius: 24px; box-shadow: 0 22px 70px rgba(39, 79, 60, .1); }
+    .auth-card .brand { padding: 0; }
+    .auth-card h1 { margin: 0; font-size: 1.2rem; letter-spacing: -.045em; line-height: 1.1; }
+    .auth-card .auth-intro { margin: 34px 0 8px; font: 400 2rem/1.15 Georgia, serif; letter-spacing: -.04em; }
+    .auth-card #auth-status { color: var(--muted); margin: 0 0 18px; }
+    .auth-card #auth-login { width: 100%; min-height: 48px; }
+    .auth-card .privacy-note:first-of-type { margin-top: 24px; }
+    .auth-card .privacy-note { font-size: .75rem; }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --bg: #14211d; --panel: #1d3029; --side: #192a23; --text: #edf5ed; --muted: #b4c8bb; --border: #3a5144; --accent: #b1dec4; --user: #2d5141; --shadow: 0 14px 38px rgba(0,0,0,.2); }
+      aside { background: #192a23; }
+      .brand-mark { background: #b1dec4; color: #193a2d; }
+      .btn, .chips button[aria-pressed="true"] { color: #18372c; }
+      .btn:not(:disabled):hover { background: #c7ead5; }
+      .btn.ghost { color: var(--text); }
+      main { background: radial-gradient(ellipse at 54% 14%, #21372a 0, transparent 45%), var(--bg); }
+      header { background: rgba(29, 48, 41, .85); }
+      .tabs button.on { background: #365646; color: #eff8ef; }
+      .empty-orb { color: #c4e7cf; background: #2d4c39; border-color: #42614a; }
+      .eyebrow { color: #b1dec4; }
+      .starters button:hover { background: #2b4537; border-color: #719d7c; }
+      .composer-inner { border-color: var(--border); }
+      .auth-gate { background: radial-gradient(ellipse at 50% 20%, #294033 0%, #14211d 62%); }
+      .auth-card { border-color: var(--border); }
+    }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100dvh; }
+      aside { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px 10px; align-items: center; max-height: 23vh; overflow: auto; padding: 10px 14px; }
+      aside .brand { padding: 0; }
+      aside .brand h1 { font-size: 1rem; }
+      .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
+      .brand-subtitle { font-size: .58rem; }
+      aside #auth-logout { grid-column: 2; grid-row: 1; }
+      aside #new-chat { grid-column: 3; grid-row: 1; width: auto; padding: 8px 10px; font-size: .77rem; }
+      .auth-account { grid-column: 1 / -1; font-size: .7rem; }
+      .side-label { display: none; }
+      #sessions { grid-column: 1 / -1; flex-direction: row; overflow: auto; max-height: 36px; }
+      #sessions li { flex: 0 0 auto; max-width: 190px; }
+      #sessions button { padding: 5px 8px; font-size: .76rem; }
+      .side-note { grid-column: 1 / -1; padding: 5px 2px 0; font-size: .68rem; }
+      header { min-height: 0; padding: 10px 14px; }
+      .tabs { width: 100%; }
+      .tabs button { padding: 8px 9px; font-size: .78rem; }
+      header .btn.ghost { font-size: .7rem; }
+      #messages { padding: 14px 16px; }
+      .empty { margin-top: 10px; }
+      .empty-orb { width: 44px; height: 44px; margin-bottom: 11px; border-radius: 16px; font-size: 1.4rem; }
+      .empty h2 { margin: 7px 0 8px; font-size: 1.8rem; }
+      .empty-copy { font-size: .84rem; line-height: 1.5; }
+      .starter-label { margin-top: 14px; }
+      .starters { grid-template-columns: 1fr; gap: 6px; margin-top: 9px; }
+      .starters button { width: 100%; padding: 8px 10px; font-size: .8rem; }
+      form#composer { padding: 10px 14px 12px; }
+      #mentor, #tests { padding: 18px 14px; }
+      .auth-card { padding: 27px 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
   </style>
 </head>
 <body>
 <div id="auth-gate" class="auth-gate" role="region" aria-label="Sign in">
-  <div class="auth-card"><h1>WiserWave</h1><p id="auth-status" role="status">Checking sign-in…</p><button id="auth-login" class="btn" type="button" hidden>Continue with Google</button><p class="privacy-note">Avoid entering sensitive details. WiserWave is a demo and not medical care.</p><p class="privacy-note">If you may be in immediate danger, call emergency services. In the U.S., call or text 988 for the Suicide &amp; Crisis Lifeline. Elsewhere, contact your local emergency services or crisis line.</p></div>
+  <div class="auth-card">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M3 11c4-5 8-5 13 0s9 5 13 0M3 17c4-5 8-5 13 0s9 5 13 0M3 23c4-5 8-5 13 0s9 5 13 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
+    <p class="auth-intro">A little space<br>to find your calm.</p>
+    <p id="auth-status" role="status">Checking sign-in…</p>
+    <button id="auth-login" class="btn" type="button" hidden>Continue with Google</button>
+    <p class="privacy-note">Avoid entering sensitive details. WiserWave is a demo and not medical care.</p>
+    <p class="privacy-note">If you may be in immediate danger, call emergency services. In the U.S., call or text 988 for the Suicide &amp; Crisis Lifeline. Elsewhere, contact your local emergency services or crisis line.</p>
+  </div>
 </div>
 <div class="app" inert>
   <aside>
-    <h1>WiserWave</h1>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M3 11c4-5 8-5 13 0s9 5 13 0M3 17c4-5 8-5 13 0s9 5 13 0M3 23c4-5 8-5 13 0s9 5 13 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
     <div class="auth-account" id="auth-account"></div>
     <button class="btn ghost" id="auth-logout" type="button" hidden>Sign out</button>
     <button class="btn" id="new-chat">+ New chat</button>
+    <p class="side-label">Your conversations</p>
     <ul id="sessions"></ul>
     <div class="side-note" id="session-privacy">No account sign-in yet. Conversations may be saved on the server and can be read by someone with the session ID. This list is kept in this browser.</div>
   </aside>
@@ -178,7 +309,7 @@
       <div id="messages"><div class="thread" id="thread"></div></div>
       <form id="composer">
         <div class="composer-inner">
-          <textarea id="input" rows="1" placeholder="What’s on your mind? Ask a question or follow up…" aria-label="Your question for the personal coach"></textarea>
+          <textarea id="input" rows="1" placeholder="Ask your question…" aria-label="Your question for the personal coach"></textarea>
           <button class="btn" id="send">Send</button>
         </div>
         <p class="privacy-note">Avoid names and sensitive details. Your messages may be sent to the configured AI provider and saved on the server. AI can make mistakes and is not medical care.</p>
@@ -306,10 +437,16 @@
   // ---------------------------------------------------------------------------
   // B. Tabs: switch between "Chat" and "Test runner"
   // ---------------------------------------------------------------------------
-  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
-    document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-    document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "view-" + b.dataset.view));
-  }));
+  document.querySelectorAll(".tabs button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.classList.contains("on")));
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".tabs button").forEach((x) => {
+        x.classList.toggle("on", x === b);
+        x.setAttribute("aria-pressed", String(x === b));
+      });
+      document.querySelectorAll(".view").forEach((v) => v.classList.toggle("on", v.id === "view-" + b.dataset.view));
+    });
+  });
 
   // ---------------------------------------------------------------------------
   // C. Chat: send a message (FLOW 1)
@@ -334,8 +471,11 @@
       "How can I pause before responding when I feel angry?",
     ];
     thread.replaceChildren(el("div", { className: "empty" },
-      el("h2", { textContent: "A little space to reflect" }),
-      el("div", { textContent: "Share a question and explore a perspective from the Patanjali Yoga Sutras. Ask follow-up questions in this conversation; the coach can use the recent context." }),
+      el("div", { className: "empty-orb", textContent: "∿", ariaHidden: "true" }),
+      el("div", { className: "eyebrow", textContent: "Your space to pause" }),
+      el("h2", { textContent: "A little space to reflect." }),
+      el("div", { className: "empty-copy", textContent: "Bring a question, and explore a perspective grounded in the Patanjali Yoga Sutras. Take your time—you can ask follow-up questions, too." }),
+      el("div", { className: "starter-label", textContent: "A few places to begin" }),
       el("div", { className: "starters" }, ...starters.map((t) => el("button", { type: "button", textContent: t, onclick: () => { input.value = t; send(); } })))));
   }
 
