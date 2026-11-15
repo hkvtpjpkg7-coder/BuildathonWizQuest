@@ -1,18 +1,29 @@
 # WiserWave Personal Coach
 
-The personal coach is the current first phase of WiserWave. It searches locally
-indexed excerpts of the supplied *Patanjali Yoga Sutras* PDF and uses a model to
-offer a tentative reflection with references to physical PDF page numbers.
-Conversation history is kept within the current session. The Mentor tab holds
-the Yoga Sutras Chapter 1 lessons, described in `docs/MENTOR.md`;
-password-based accounts are future work; see `docs/AUTH_PLAN.md`.
+The Personal Coach helps with a specific everyday question or situation. It
+searches locally indexed excerpts of the supplied *Patanjali Yoga Sutras*
+commentary and uses a model to offer a tentative reflection. Relevant source
+references are available through **Explore the reference** or an explicit
+source question; physical PDF page numbers are not sutra numbers.
+
+The coach uses recent messages in the current conversation, asks for useful
+context when a concern is underspecified, and supports grounded follow-ups,
+including shortening its previous answer. It is paired with the Mentor tab's
+incremental lessons and exercises; see [Mentor](MENTOR.md).
+
+Google sign-in is implemented with Firebase. Private coach conversations are
+bound to the verified account, and both chat and history APIs enforce that
+ownership. Password-based accounts are not implemented. See
+[authentication setup and limitations](AUTH_PLAN.md).
 
 ## Run locally
 
 First generate the PDF index as described below. **A fresh clone does not
-include the generated index and cannot run the coach or its retrieval tests
-until this step is complete.** The running demonstration already has its own
-local index.
+include the generated index and cannot run the coach backend or its retrieval
+tests until this step is complete.** The running demonstration already has its
+own index. Remote evaluation with `--target https://wiserwave.app` does not
+import the local backend and does not need the PDF, index, `.env`, or model key;
+see the [judge guide](../README.md).
 
 Install Node.js 24 LTS and the project dependencies (`npm install`), then
 copy `.env.example` to `.env`. For real model-generated answers, configure an
@@ -25,8 +36,10 @@ separately from a signed-in Codex session.
 Authentication fails closed until configured. For a private local-only preview,
 explicitly set `AUTH_PROVIDER=off`; never use that setting on a public site.
 For Google sign-in, follow [the Firebase setup and validation steps](AUTH_PLAN.md).
-The command-line test runner does not yet support Firebase bearer tokens against
-a protected deployment; the in-browser runner uses the signed-in account.
+The in-browser runner uses the signed-in account. The public judge runner uses
+the separate, temporary organizer evaluation path; it does not sign in or test
+Google authentication. The [safety runner](../safety/README.md) also documents an
+optional short-lived Firebase-token mode for an operator's test account.
 
 Run `npm run dev` and open the address Netlify prints. If no provider is
 configured, the app uses **mock mode**, which only shows an extracted source
@@ -83,7 +96,9 @@ check of the wording, the cited passage, or safety: read each response.
 The same coach cases can be run in the terminal with `npm test`, or against a
 running deployment with `node scripts/run-tests.mjs --target http://HOST:8888`.
 These runs use the configured provider and can consume API credits; to use the
-local extractive mock instead, run `LLM_PROVIDER=mock npm test`. Legacy CSVs in
+local extractive mock instead, run
+`AUTH_PROVIDER=off LLM_PROVIDER=mock npm test` in an isolated local process.
+Legacy CSVs in
 `public/data/` are starter examples, not coach evaluations.
 The command exits with a non-zero status if a scored case fails or a request
 or test case has an error. Reports are still saved for review.
@@ -99,8 +114,39 @@ It is still heuristic: it can miss untested expressions or misinterpret context.
 See `safety/README.md` and `docs/safety_report.md` for the evaluation and its
 limits. The coach must not be relied on as crisis care.
 
-The starter can store conversations in Netlify Blobs. It has no user login or
-ownership enforcement: anyone with a conversation ID may be able to retrieve
-it. Basic pattern-based redaction is incomplete. Use fictional test data and do
-not enter private health information until authentication and data protection
-are implemented. The coach is educational reflection, not medical advice.
+## Data, access, and remaining limits
+
+- **Private conversations:** Firebase ID tokens are verified on the server.
+  Conversations use account-specific storage keys; knowing another user's
+  conversation ID does not grant access. Revocation is not checked on each
+  request, and sign-out does not instantly revoke an issued token.
+- **Storage:** The current Google Cloud VM runs Netlify development services
+  with locally persisted Blobs under its private `.netlify` directory.
+  Persistence of a synthetic conversation across a service restart was
+  verified during integration. This is a VM demo deployment, not managed
+  Netlify production hosting. Other environments fall back to process memory
+  if Blobs is unavailable; that fallback loses conversations on restart. Check
+  the API response's `storage` field. The conversation sidebar is browser-local
+  and separated by account; there is no cross-device conversation index.
+- **Organizer evaluation:** When explicitly enabled by the operator, requests
+  without an Authorization header may use a separate evaluation namespace
+  until a configured expiry, subject to request limits. This is for synthetic
+  judge inputs. It cannot retrieve private account conversations, and invalid
+  bearer tokens do not downgrade to anonymous access. Expiry stops future
+  anonymous access; it does not itself delete stored evaluation records.
+- **Context:** The coach sends the last ten exchanges to the model. Ordinary
+  conversations are limited to 50 user messages, each at most 2,000 characters.
+  It has no durable personal profile across chats. Retrieval is lexical and can
+  miss context or choose a weak match; references need human assessment.
+- **Privacy:** Pattern-based redaction is incomplete. Prompts, recent history,
+  and retrieved excerpts may go to the configured model provider. Use
+  fictional examples for evaluation and avoid sensitive personal or health
+  details. This prototype is educational reflection, not medical care or a
+  clinically validated service.
+- **Mentor:** Progress and the Seeker live in browser storage shared by that
+  browser profile's Google accounts. They are not saved to the signed-in
+  account. Lessons retain their own styling and only inherit light/dark
+  color-scheme; the full WiserWave theme palette is not passed into them.
+
+API keys, authentication tokens, the source PDF, generated knowledge index,
+private configuration, and stored conversations must remain out of Git.

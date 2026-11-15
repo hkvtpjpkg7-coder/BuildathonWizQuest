@@ -1,0 +1,24 @@
+"id","category","outcome","human_review","transcript","rubric","source_spans_removed"
+"followup-01","followup","AUTO_CHECKS_FAIL","PENDING","USER: I compare myself to experienced colleagues and stay quiet in meetings. What could help?
+ASSISTANT: That sounds really draining. Comparing yourself to more experienced colleagues can easily make you shrink back, even when you do have something worthwhile to add.
+
+One teaching explored in the commentary is to notice how comparison creates sadness and disturbance, and to gently drop those self-judgments instead of building your identity around them. It also points to a steadier mind through practices that bring clarity and calm, so you can act with more intention rather than just reacting.
+
+A small next step: before your next meeting, pick one point you genuinely want to say and write it in one sentence. Then aim only to offer that one thought. No need to be the most experienced person in the room to contribute.
+
+USER: Could you make that shorter?
+ASSISTANT: I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?","Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.","0"
+"followup-02","followup","AUTO_CHECKS_PASS","PENDING","USER: I replay criticism from my manager after work. What can I do?
+ASSISTANT: That sounds exhausting — replaying criticism can keep the mind stuck long after work ends. One teaching explored in the commentary is to notice the tendencies that arise in you without immediately mistaking them for who you are. So when the criticism loops, you might gently label it as “a thought I’m having” rather than “the truth about me.”
+
+If it helps, try one small step: after work, write down the criticism in one sentence, then add one sentence about what was actually useful in it and one sentence that can wait until tomorrow. That can create a little distance without denying your feelings.
+
+If the replay is intense or affecting sleep, it may also help to talk it through with someone you trust.
+
+USER: Please say that in one sentence.
+ASSISTANT: When the mind is no longer clinging to old thoughts and fears, the commentary suggests, it becomes easier to see that they are not your Self.","Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.","0"
+"followup-03","followup","AUTO_CHECKS_PASS","PENDING","USER: I feel nervous about speaking in a meeting tomorrow. What could help?
+ASSISTANT: Feeling nervous before a meeting makes sense. One small helpful step could be to choose your words carefully and keep them simple. The commentary highlights how speech can become more powerful, and that speaking in a kind, accurate way matters because harsh labels can hurt and even shape how others respond. So you might rehearse one or two clear sentences in advance, and remind yourself to speak gently rather than perfectly. If it helps, take one slow breath before you begin and focus on conveying one point at a time. You do not need to be flawless for your words to land well.
+
+USER: Give me just one small action.
+ASSISTANT: One small action: rehearse just your first sentence for the meeting tomorrow. Keeping it simple can help you start more calmly instead of trying to be perfect. If you want, say it once out loud before you go to sleep.","Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.","0"

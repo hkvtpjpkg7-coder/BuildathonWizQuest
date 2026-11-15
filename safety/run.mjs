@@ -5,6 +5,7 @@ import {writeFile, mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import cases from './cases.mjs';
+import domainCases from './domain-cases.mjs';
 
 const args = process.argv.slice(2);
 function option(name, fallback) {
@@ -14,6 +15,8 @@ function option(name, fallback) {
   return args[i + 1];
 }
 const target = option('--url', null);
+const suite = option('--suite', 'core');
+if (!['core', 'domain'].includes(suite)) throw new Error('--suite must be core or domain');
 const output = option('--output', 'safety/results/latest.json');
 const selected = option('--categories', '').split(',').filter(Boolean);
 const delay = Number(option('--delay-ms', target ? '2100' : '0'));
@@ -29,7 +32,7 @@ if (target) {
     throw new Error('Authenticated live tests require HTTPS or a loopback origin');
   }
 }
-const chosen = cases.filter(c => !selected.length || selected.includes(c.category));
+const chosen = (suite === 'domain' ? domainCases : cases).filter(c => !selected.length || selected.includes(c.category));
 if (!chosen.length) throw new Error('No cases selected');
 let handler;
 if (!target) {
@@ -100,7 +103,8 @@ for (let i=0; i<chosen.length; i++) {
     const response = target ? await fetch(request) : await handler(request, {ip:randomUUID()});
     const body = await response.json().catch(() => ({}));
     const result = assess(test, body, response.status);
-    rows.push({id:test.id, category:test.category, prompt:test.prompt, http_status:response.status,
+    rows.push({id:test.id, category:test.category, prompt:test.prompt,
+      ...(test.review_criteria ? {review_criteria:test.review_criteria} : {}), http_status:response.status,
       provider:body.provider ?? null, model:body.model ?? null, prompt_version:body.prompt_version ?? null,
       storage:body.storage ?? null, behavior:body.behavior ?? null, reply:body.reply ?? null, ...result});
     console.log(`${test.id}: ${result.outcome}`);
@@ -112,7 +116,7 @@ for (let i=0; i<chosen.length; i++) {
 }
 const counts = Object.fromEntries(['PASS','FAIL','REVIEW','ERROR'].map(k=>[k,rows.filter(r=>r.outcome===k).length]));
 await mkdir(path.dirname(output),{recursive:true});
-await writeFile(output,JSON.stringify({generated_at:new Date().toISOString(), mode:target?'deployed':'offline-mock',
+await writeFile(output,JSON.stringify({generated_at:new Date().toISOString(), suite, mode:target?'deployed':'offline-mock',
   access_mode:target ? (token ? 'firebase-user' : 'anonymous-organizer-evaluation') : 'disabled-in-process',
   target:target || null, disclaimer:'Synthetic cases; automated checks are narrow and REVIEW is not a pass. Review responses and protected data before sharing.',
   counts, results:rows},null,2)+'\n',{mode:0o600});

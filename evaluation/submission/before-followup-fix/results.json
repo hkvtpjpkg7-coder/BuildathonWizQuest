@@ -1,0 +1,481 @@
+{
+  "metadata": {
+    "started_at": "2026-11-15T09:17:02.519Z",
+    "target": "https://wiserwave.app",
+    "runner_checkout_sha": "d4734ee3d6d2fe9ad413c74ca9058ad5d84b0beb",
+    "declared_deployment_sha": "d4734ee3d6d2fe9ad413c74ca9058ad5d84b0beb",
+    "dataset_sha256": "40d2569d06b4e391c858784a5ece41e79bb760156c61c5697b174142e91246d6",
+    "node": "v26.5.0",
+    "concurrency": 2,
+    "minimum_request_interval_ms": 2500,
+    "timeout_ms": 45000,
+    "max_429_retries": 1,
+    "evaluation_type": "synthetic application scenarios; narrow automated contract/behavior/content checks, not human quality or clinical validation",
+    "human_review_completed": 0,
+    "completed_at": "2026-11-15T09:17:16.577Z",
+    "exported_at": "2026-11-15T09:42:08.117Z",
+    "raw_report_sha256": "42009a1828b61ef128aee5cf4fdc8c068386027ad37e56668d8eaeeab1c4f8eb",
+    "sanitization": "Conservative six-word-or-longer exact normalized overlap with private source removed from replies. Session IDs, retrieval bodies and arbitrary fields omitted. Original automated outcomes are retained from the unredacted run; do not regrade the redacted text as though it were the original.",
+    "source_spans_removed": 0
+  },
+  "summary": {
+    "cases": 3,
+    "attempted_turns": 6,
+    "successful_http_turns": 6,
+    "auto_checks_pass": 2,
+    "auto_checks_fail": 1,
+    "errors": 0,
+    "behavior_alignment": {
+      "passed": 5,
+      "checked": 6
+    },
+    "heuristic_checks": {
+      "passed": 34,
+      "checked": 35
+    },
+    "human_review_completed": 0,
+    "human_review_required": 3,
+    "categories": {
+      "followup": {
+        "total": 3,
+        "auto_checks_pass": 2,
+        "auto_checks_fail": 1,
+        "errors": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "followup-01",
+      "category": "followup",
+      "human_rubric": "Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.",
+      "human_review": "PENDING",
+      "outcome": "AUTO_CHECKS_FAIL",
+      "turns": [
+        {
+          "turn": 1,
+          "prompt": "I compare myself to experienced colleagues and stay quiet in meetings. What could help?",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": true,
+              "detail": "expected ANSWER; got ANSWER"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            }
+          ],
+          "response": {
+            "reply": "That sounds really draining. Comparing yourself to more experienced colleagues can easily make you shrink back, even when you do have something worthwhile to add.\n\nOne teaching explored in the commentary is to notice how comparison creates sadness and disturbance, and to gently drop those self-judgments instead of building your identity around them. It also points to a steadier mind through practices that bring clarity and calm, so you can act with more intention rather than just reacting.\n\nA small next step: before your next meeting, pick one point you genuinely want to say and write it in one sentence. Then aim only to offer that one thought. No need to be the most experienced person in the room to contribute.",
+            "source_spans_removed": 0,
+            "behavior": "ANSWER",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "openai",
+            "model": "gpt-5.4-mini",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 2076,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [
+                "P42-2",
+                "P92-3",
+                "P43-4",
+                "P4-4"
+              ],
+              "used_ids": [
+                "P42-2",
+                "P92-3"
+              ],
+              "cited_ids": []
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "prompt": "Could you make that shorter?",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": false,
+              "detail": "expected ANSWER; got DECLINE"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "word_limit",
+              "pass": true,
+              "detail": "18 <= 90"
+            },
+            {
+              "name": "shorter_than_previous",
+              "pass": true,
+              "detail": "18 vs 121 words"
+            }
+          ],
+          "response": {
+            "reply": "I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?",
+            "source_spans_removed": 0,
+            "behavior": "DECLINE",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "local",
+            "model": "none",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 96,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [],
+              "used_ids": [],
+              "cited_ids": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "followup-02",
+      "category": "followup",
+      "human_rubric": "Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.",
+      "human_review": "PENDING",
+      "outcome": "AUTO_CHECKS_PASS",
+      "turns": [
+        {
+          "turn": 1,
+          "prompt": "I replay criticism from my manager after work. What can I do?",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": true,
+              "detail": "expected ANSWER; got ANSWER"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            }
+          ],
+          "response": {
+            "reply": "That sounds exhausting — replaying criticism can keep the mind stuck long after work ends. One teaching explored in the commentary is to notice the tendencies that arise in you without immediately mistaking them for who you are. So when the criticism loops, you might gently label it as “a thought I’m having” rather than “the truth about me.”\n\nIf it helps, try one small step: after work, write down the criticism in one sentence, then add one sentence about what was actually useful in it and one sentence that can wait until tomorrow. That can create a little distance without denying your feelings.\n\nIf the replay is intense or affecting sleep, it may also help to talk it through with someone you trust.",
+            "source_spans_removed": 0,
+            "behavior": "ANSWER",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "openai",
+            "model": "gpt-5.4-mini",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 1893,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [
+                "P38-4",
+                "P41-4",
+                "P78-3"
+              ],
+              "used_ids": [
+                "P78-3"
+              ],
+              "cited_ids": []
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "prompt": "Please say that in one sentence.",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": true,
+              "detail": "expected ANSWER; got ANSWER"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "word_limit",
+              "pass": true,
+              "detail": "26 <= 45"
+            },
+            {
+              "name": "sentence_limit_heuristic",
+              "pass": true,
+              "detail": "1 <= 1; abbreviation-sensitive heuristic"
+            }
+          ],
+          "response": {
+            "reply": "When the mind is no longer clinging to old thoughts and fears, the commentary suggests, it becomes easier to see that they are not your Self.",
+            "source_spans_removed": 0,
+            "behavior": "ANSWER",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "openai",
+            "model": "gpt-5.4-mini",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 880,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [
+                "P67-4",
+                "P40-2",
+                "P15-3",
+                "P92-2"
+              ],
+              "used_ids": [
+                "P67-4"
+              ],
+              "cited_ids": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "followup-03",
+      "category": "followup",
+      "human_rubric": "Read the whole conversation. The follow-up must address the previous concern and the latest request without restarting intake, declining a relevant continuation, or introducing unrelated teaching. For shortening requests verify the reply is actually shorter.",
+      "human_review": "PENDING",
+      "outcome": "AUTO_CHECKS_PASS",
+      "turns": [
+        {
+          "turn": 1,
+          "prompt": "I feel nervous about speaking in a meeting tomorrow. What could help?",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": true,
+              "detail": "expected ANSWER; got ANSWER"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            }
+          ],
+          "response": {
+            "reply": "Feeling nervous before a meeting makes sense. One small helpful step could be to choose your words carefully and keep them simple. The commentary highlights how speech can become more powerful, and that speaking in a kind, accurate way matters because harsh labels can hurt and even shape how others respond. So you might rehearse one or two clear sentences in advance, and remind yourself to speak gently rather than perfectly. If it helps, take one slow breath before you begin and focus on conveying one point at a time. You do not need to be flawless for your words to land well.",
+            "source_spans_removed": 0,
+            "behavior": "ANSWER",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "openai",
+            "model": "gpt-5.4-mini",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 1608,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [
+                "P83-1",
+                "P62-3"
+              ],
+              "used_ids": [
+                "P62-3"
+              ],
+              "cited_ids": []
+            }
+          }
+        },
+        {
+          "turn": 2,
+          "prompt": "Give me just one small action.",
+          "http_status": 200,
+          "expected_behavior": [
+            "ANSWER"
+          ],
+          "checks": [
+            {
+              "name": "reply_present",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "behavior_alignment",
+              "pass": true,
+              "detail": "expected ANSWER; got ANSWER"
+            },
+            {
+              "name": "valid_behavior_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "session_id_contract",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "reference_ids_in_supplied_context",
+              "pass": true,
+              "detail": ""
+            },
+            {
+              "name": "word_limit",
+              "pass": true,
+              "detail": "40 <= 80"
+            }
+          ],
+          "response": {
+            "reply": "One small action: rehearse just your first sentence for the meeting tomorrow. Keeping it simple can help you start more calmly instead of trying to be perfect. If you want, say it once out loud before you go to sleep.",
+            "source_spans_removed": 0,
+            "behavior": "ANSWER",
+            "flags": {
+              "pii_redacted": [],
+              "injection_suspected": false,
+              "distress": false,
+              "output_valid": true,
+              "dietary_referral": false,
+              "medical_referral": false
+            },
+            "provider": "openai",
+            "model": "gpt-5.4-mini",
+            "prompt_version": "patanjali-coach-v2",
+            "latency_ms": 1042,
+            "evidence": {
+              "source_requested": false,
+              "supplied_ids": [
+                "P28-1",
+                "P89-3",
+                "P71-2"
+              ],
+              "used_ids": [
+                "P28-1"
+              ],
+              "cited_ids": []
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
