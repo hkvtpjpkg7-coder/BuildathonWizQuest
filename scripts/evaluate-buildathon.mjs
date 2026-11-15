@@ -96,7 +96,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (!selected.length || ids.some(id => !cases.some(c => c.id === id))) throw new Error('Unknown or empty --ids selection');
   const started = new Date().toISOString(), output = resolve(value('--output', `evaluation/results/${started.replace(/[:.]/g,'-')}`));
   mkdirSync(output,{recursive:true});
-  let codeSHA = 'unknown'; try { codeSHA = execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim(); } catch {}
+  let codeSHA = 'unknown'; try { codeSHA = execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim(); } catch {}
   const metadata = { started_at: started, target: target.origin, runner_checkout_sha: codeSHA,
     declared_deployment_sha: value('--deployment-sha','not independently supplied'),
     dataset_sha256: createHash('sha256').update(readFileSync(new URL('../evaluation/cases.mjs',import.meta.url))).digest('hex'),
