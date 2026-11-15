@@ -31,7 +31,7 @@ import {
   validateMessage, redactPII, looksLikeInjection, showsDistress, explicitlySafe, requiresSafetyInterpretation, parseModelOutput,
   SUPPORT_LINE, MAX_TURNS_PER_SESSION,
 } from "../../lib/checks.mjs";
-import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
+import { callLLM, provider, modelName, env, PROMPT_VERSION, SYSTEM_PROMPT } from "../../lib/llm.mjs";
 import { retrieve, formatPassages, passagesById } from "../../lib/rag.mjs";
 import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
 import { clarificationFor, isPersonalConcern, isClarificationContinuation, requestsSource, declinesToElaborate, supportiveFallback, isPersonalSleepConcern, sleepSupport } from "../../lib/clarify.mjs";
@@ -449,7 +449,7 @@ export default async (req, context) => {
     // those chunks as support to someone expressing loneliness. This targeted
     // safeguard does not substitute for broader source and model review.
     if (/\b(?:lonel\w*|isolat\w*|disconnect\w*|friend\w*|famil\w*|companionship)\b/i.test(query)) {
-      const unhelpful = new Set(['P37-4', 'P38-1', 'P41-2', 'P88-1', 'P88-2']);
+      const unhelpful = new Set(['P37-4', 'P38-1', 'P41-2', 'P42-1', 'P88-1', 'P88-2']);
       hits = hits.filter((hit) => !unhelpful.has(hit.id));
     }
     extra = { type: "rag", source: "Patanjali Yoga Sutras — Sri Sri Ravi Shankar", items: hits };
@@ -530,16 +530,23 @@ export default async (req, context) => {
     }
   } else {
     try {
-      const llm = await callLLM(history);
-      usage = { input_tokens: (usage.input_tokens || 0) + (llm.usage?.input_tokens || 0), output_tokens: (usage.output_tokens || 0) + (llm.usage?.output_tokens || 0) };
-      const parsed = parseModelOutput(llm.raw);
-      flags.output_valid = parsed.ok;
-      ({ behavior, reply } = parsed);
-      // Reject malformed model output and any invented passage identifiers.
-      // Checking IDs is not proof that the interpretation is faithful.
-      const mentioned = [...reply.matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((m) => m[1]);
       const allowed = new Set(extra.items.map((item) => item.id));
-      const claimed = [...new Set([...parsed.source_ids ?? [], ...mentioned])];
+      let claimed, invalidGrounding;
+      // One bounded repair uses exactly the same dialogue and reference data,
+      // never the rejected prose. Current IDs can differ from an older answer.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const options = attempt ? { systemPrompt: `${SYSTEM_PROMPT}\nReturn the exact JSON contract. The only currently allowed source IDs are ${JSON.stringify([...allowed])}. Do not copy IDs from earlier turns unless they are in this list. For ANSWER, identify actual supporting current evidence; if it cannot support an answer, use DECLINE. Retain CARE if the original dialogue indicates danger.` } : undefined;
+        const llm = await callLLM(history, options);
+        usage = { input_tokens: (usage.input_tokens || 0) + (llm.usage?.input_tokens || 0), output_tokens: (usage.output_tokens || 0) + (llm.usage?.output_tokens || 0) };
+        const parsed = parseModelOutput(llm.raw);
+        flags.output_valid = parsed.ok;
+        ({ behavior, reply } = parsed);
+        // ID membership is required, but is not proof of source faithfulness.
+        const mentioned = [...reply.matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((m) => m[1]);
+        claimed = [...new Set([...parsed.source_ids ?? [], ...mentioned])];
+        invalidGrounding = !parsed.ok || claimed.some((id) => typeof id !== 'string' || !allowed.has(id)) || (behavior === 'ANSWER' && !claimed.length);
+        if (behavior === 'CARE' || !invalidGrounding) break;
+      }
       if (behavior === 'CARE') {
         // A model-detected crisis gets fixed immediate support even if the
         // model supplied malformed or invented citations; never downgrade it.
@@ -547,7 +554,7 @@ export default async (req, context) => {
         extra = null;
         modelFlaggedCrisis = true;
         flags.distress = true;
-      } else if (!parsed.ok || claimed.some((id) => typeof id !== 'string' || !allowed.has(id)) || (behavior === "ANSWER" && !claimed.length)) {
+      } else if (invalidGrounding) {
         flags.output_valid = false;
         behavior = "DECLINE";
         reply = "I'd like to understand your situation better. What feels most important to you right now?";
