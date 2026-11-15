@@ -242,3 +242,16 @@ test('crisis and clinical context retain priority over conversational planning',
     }
   } finally { globalThis.fetch = original; }
 });
+
+
+test('a generated retrieval paraphrase cannot create a personal crisis disclosure', async () => {
+  const original = globalThis.fetch;
+  try {
+    const calls = provider([plan('new_topic', { query: 'I want to end it when my meditation timer rings. How can I finish my practice?' })], { planFirstTurn: true });
+    const out = await send('How do I finish my meditation session when the timer rings?');
+    assert.equal(out.behavior, 'ANSWER');
+    assert.equal(out.flags.distress, false);
+    assert.equal((await loadSession(out.session_id)).crisis_active, false);
+    assert.equal(calls.answering.length, 1);
+  } finally { globalThis.fetch = original; }
+});

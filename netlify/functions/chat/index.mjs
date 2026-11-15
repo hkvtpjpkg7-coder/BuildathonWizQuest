@@ -413,10 +413,9 @@ export default async (req, context) => {
     flags.output_valid = plan.valid;
     if (plan.intent === 'care') flags.distress = true;
     if (plan.intent === 'medical') { medicalKind = 'treatment'; flags.medical_referral = true; }
-    // Recheck the resolved request too: an inferred medication antecedent or
-    // danger signal must not enter retrieval just because it was called continue.
+    // Resolve medication antecedents conservatively. A generated search
+    // paraphrase is not a personal disclosure and cannot establish crisis state.
     if (plan.query) {
-      if (showsDistress(plan.query)) flags.distress = true;
       medicalKind ||= medicalReferral(plan.query, focus.user?.content);
       flags.medical_referral = Boolean(medicalKind);
     }
