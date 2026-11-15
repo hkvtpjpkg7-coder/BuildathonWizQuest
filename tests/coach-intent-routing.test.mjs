@@ -81,6 +81,19 @@ test('teaching subject with no evidence cannot use the wellbeing fallback', asyn
   } finally { globalThis.fetch = original; }
 });
 
+test('a search paraphrase cannot turn a concrete exam question into generic intake', async () => {
+  const original = globalThis.fetch;
+  try {
+    const calls = providerFixture(searchPlan({ query: 'I feel anxious.' }));
+    const result = await send('I get very anxious before exams. Which sutras might help me, and how would I apply them?');
+    assert.equal(result.behavior, 'ANSWER');
+    assert.equal(result.flags.distress, false);
+    assert.equal(calls.planner, 1);
+    assert.equal(calls.answer + calls.support, 1);
+    assert.doesNotMatch(result.reply, /what.s been weighing on you most/i);
+  } finally { globalThis.fetch = original; }
+});
+
 test('a generated retrieval paraphrase cannot establish a medication-change request', async () => {
   const message = 'I compare myself to colleagues and wish I could be kinder to myself.';
   const query = 'Should I stop taking my medication?';

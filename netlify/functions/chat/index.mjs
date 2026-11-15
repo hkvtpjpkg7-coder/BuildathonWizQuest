@@ -442,9 +442,9 @@ export default async (req, context) => {
     // never by treating a generated search paraphrase as a new user request.
   }
   if (plan && plan.subject !== 'teaching' && ['continue', 'new_topic'].includes(plan.intent)) {
-    // An unanswered clarification about this same concern must not repeat,
-    // even if the planner mislabels a repeated disclosure as a new topic.
-    clarification = clarificationFor(plan.query, previousClarification);
+    // Search wording can omit a question or circumstance the user supplied.
+    // Decide whether to ask for details from what the person actually wrote.
+    clarification = clarificationFor(redacted.text, previousClarification);
   }
   const conversationalReply = plan && ['acknowledge', 'close', 'clarify'].includes(plan.intent);
   const sleepContinuation = (!plan || plan.intent === 'continue') &&
