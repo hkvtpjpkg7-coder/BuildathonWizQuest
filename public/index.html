@@ -187,8 +187,8 @@
     .app { grid-template-columns: 260px minmax(0, 1fr); min-height: 0; }
     aside { padding: 24px 16px 18px; gap: 12px; background: linear-gradient(180deg, #eaf1e8 0%, #f2f5ed 100%); }
     .brand { display: flex; align-items: center; gap: 10px; padding: 0 3px 12px; }
-    .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; flex: none; border-radius: 13px; background: #245b4d; color: #e9f4e9; }
-    .brand-mark svg { width: 25px; height: 25px; }
+    .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; flex: none; border-radius: 13px; background: #faf2e3; border: 1px solid rgba(0, 83, 73, .14); }
+    .brand-mark svg { width: 29px; height: auto; display: block; }
     .brand-copy { min-width: 0; }
     aside .brand h1 { margin: 0; font-size: 1.14rem; letter-spacing: -.045em; line-height: 1.1; }
     .brand-subtitle { display: block; margin-top: 4px; color: var(--muted); font-size: .67rem; font-weight: 650; letter-spacing: .075em; text-transform: uppercase; }
@@ -249,7 +249,6 @@
     .auth-card .privacy-note { font-size: .75rem; }
     :root[data-theme="dark"] { color-scheme: dark; --bg: #14211d; --panel: #1d3029; --side: #192a23; --text: #edf5ed; --muted: #b4c8bb; --border: #3a5144; --accent: #b1dec4; --user: #2d5141; --shadow: 0 14px 38px rgba(0,0,0,.2); }
     :root[data-theme="dark"] aside { background: #192a23; }
-    :root[data-theme="dark"] .brand-mark { background: #b1dec4; color: #193a2d; }
     :root[data-theme="dark"] .btn, :root[data-theme="dark"] .chips button[aria-pressed="true"] { color: #18372c; }
     :root[data-theme="dark"] .btn:not(:disabled):hover { background: #c7ead5; }
     :root[data-theme="dark"] .btn.ghost { color: var(--text); }
@@ -267,7 +266,6 @@
     /* Colorful keeps the same calm layout with a brighter, warm palette. */
     :root[data-theme="colorful"] { color-scheme: light; --bg: #fff8ee; --panel: #fffefa; --side: #e9efff; --text: #282452; --muted: #514d70; --border: #d8d8ef; --accent: #5942a6; --user: #e5ecff; --shadow: 0 14px 38px rgba(76, 58, 126, .1); }
     :root[data-theme="colorful"] aside { background: linear-gradient(180deg, #e6eeff 0%, #f7ecf5 100%); }
-    :root[data-theme="colorful"] .brand-mark { background: #5942a6; color: #fff; }
     :root[data-theme="colorful"] main { background: radial-gradient(ellipse at 54% 14%, #fff0de 0, transparent 46%), var(--bg); }
     :root[data-theme="colorful"] header { background: rgba(255, 254, 250, .84); }
     :root[data-theme="colorful"] .tabs button.on { background: #e8e5fa; color: #3c2d7a; }
@@ -285,6 +283,7 @@
       aside .brand { padding: 0; }
       aside .brand h1 { font-size: 1rem; }
       .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
+      .brand-mark svg { width: 25px; }
       .brand-subtitle { font-size: .58rem; }
       aside #auth-logout { grid-column: 2; grid-row: 1; }
       aside #new-chat { grid-column: 3; grid-row: 1; width: auto; padding: 8px 10px; font-size: .77rem; }
@@ -317,7 +316,7 @@
 <body>
 <div id="auth-gate" class="auth-gate" role="region" aria-label="Sign in">
   <div class="auth-card">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M3 11c4-5 8-5 13 0s9 5 13 0M3 17c4-5 8-5 13 0s9 5 13 0M3 23c4-5 8-5 13 0s9 5 13 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 120 51" fill="none"><path d="M0 2C12 2 18 16 30 16S48 2 60 2s18 14 30 14 18-14 30-14v13c-12 0-18 14-30 14S72 15 60 15 42 29 30 29 12 15 0 15Z" fill="#076d61"/><path d="M0 23c12 0 18 14 30 14s18-14 30-14 18 14 30 14 18-14 30-14v13c-12 0-18 14-30 14S72 36 60 36 42 50 30 50 12 36 0 36Z" fill="#27b774"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
     <p class="auth-intro">A little space<br>to find your calm.</p>
     <p id="auth-status" role="status">Checking sign-in…</p>
     <button id="auth-login" class="btn" type="button" hidden>Continue with Google</button>
@@ -328,7 +327,7 @@
 </div>
 <div class="app" inert>
   <aside>
-    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M3 11c4-5 8-5 13 0s9 5 13 0M3 17c4-5 8-5 13 0s9 5 13 0M3 23c4-5 8-5 13 0s9 5 13 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 120 51" fill="none"><path d="M0 2C12 2 18 16 30 16S48 2 60 2s18 14 30 14 18-14 30-14v13c-12 0-18 14-30 14S72 15 60 15 42 29 30 29 12 15 0 15Z" fill="#076d61"/><path d="M0 23c12 0 18 14 30 14s18-14 30-14 18 14 30 14 18-14 30-14v13c-12 0-18 14-30 14S72 36 60 36 42 50 30 50 12 36 0 36Z" fill="#27b774"/></svg></span><div class="brand-copy"><h1>WiserWave</h1><span class="brand-subtitle">A little wiser, every day</span></div></div>
     <div class="auth-account" id="auth-account"></div>
     <button class="btn ghost" id="auth-logout" type="button" hidden>Sign out</button>
     <button class="btn" id="new-chat">+ New chat</button>
