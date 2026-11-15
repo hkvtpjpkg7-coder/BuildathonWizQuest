@@ -67,8 +67,10 @@ const foldText = (value) => String(value || '').normalize('NFKD').replace(/\p{M}
 /** Recognize chapter-and-verse references, not numbers in ordinary questions. */
 export function requestedSutras(question) {
   const text = foldText(question).trim();
-  const ordinals = [...text.matchAll(/\b(first|second) sutra (?:of|in) (?:the )?(?:patanjali(?:['’]s)? )?yoga\s*sutras\b/g)]
-    .map(([, ordinal]) => ordinal === 'first' ? '1.1' : '1.2');
+  const chapterSpecified = /\b(?:chapter|pada|book)\s+(?:[1-4]|i{1,3}|iv|one|two|three|four)\b/.test(text);
+  const ordinals = chapterSpecified ? [] :
+    [...text.matchAll(/\b(first|second) sutra (?:of|in) (?:the )?(?:patanjali(?:['’]s)? )?yoga\s*sutras\b/g)]
+      .map(([, ordinal]) => ordinal === 'first' ? '1.1' : '1.2');
   const named = /\b(?:sutras?|yogasutras?|patanjali|padas?)\b/.test(text);
   const teachingTerms = /\b(?:heyam\b|karma (?:theory|in)|obstacles? (?:listed|in)|remedies (?:given|in))/.test(text);
   if (!named && !teachingTerms &&
