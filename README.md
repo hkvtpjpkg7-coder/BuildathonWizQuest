@@ -2,7 +2,8 @@
 
 **Buildathon demo:** http://34.136.82.108:8888/ (temporary VM deployment).
 
-**Start here:** See [Personal Coach setup and limitations](docs/PERSONAL_COACH.md)
+**Start here:** See [Personal Coach setup and limitations](docs/PERSONAL_COACH.md),
+the [Mentor prototype](docs/MENTOR.md) (sample data only)
 and the [future authentication plan](docs/AUTH_PLAN.md). The material below is
 the original starter guide; its Mood Meter prompt, review data, and sample tests
 describe the previous example and are not the current coach's evaluation.
