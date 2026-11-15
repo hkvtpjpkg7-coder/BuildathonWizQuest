@@ -32,8 +32,9 @@ import {
   SUPPORT_LINE, MAX_TURNS_PER_SESSION, HISTORY_TURNS_SENT,
 } from "../../lib/checks.mjs";
 import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
-import { retrieve, formatPassages } from "../../lib/rag.mjs";
+import { retrieve, formatPassages, passagesById } from "../../lib/rag.mjs";
 import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
+import { clarificationFor, isPersonalConcern, isClarificationContinuation, requestsSource, declinesToElaborate, supportiveFallback, isPersonalSleepConcern, sleepSupport } from "../../lib/clarify.mjs";
 import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
 import { evaluationSettings, createEvaluationLimiter } from "../../lib/evaluation.mjs";
 
@@ -96,6 +97,9 @@ const CRISIS_REPLY = `I'm really sorry you're going through this. If you might a
 // conservative check can also flag neutral mentions; it is not a complete
 // dietary-advice detector and requires continued review of model output.
 const RESTRICTIVE_DIET = /\b(?:fasting|fasts|(?:intermittent\s+)?fast\s+(?:for|until|from|during)|intermittent\s+fast|skip(?:ping)?\s+(?:a\s+|your\s+)?meals?|restrict(?:ing)?\s+(?:your\s+)?(?:food|calories|eating)|restrictive\s+(?:diet|eating)|(?:cut|reduce|limit)\s+(?:your\s+)?(?:calories|food intake)|(?:avoid(?:ing)?|stop)\s+eating)\b/i;
+// Targeted post-generation guard for treatment/cure assertions and medication
+// changes. This is not comprehensive medical-content detection.
+const MEDICAL_CURE_ADVICE = /\b(?:cure[sd]?|treats?|heal[sd]?|revers(?:e|es|ed))\s+(?:(?:your|the|a|any)\s+){0,3}(?:anxiety|depression|insomnia|cancer|diabetes|illness|disease|infection|adhd|ptsd)\b|\b(?:a|the)\s+(?:cure|treatment)\s+for\s+(?:(?:your|the|a|any)\s+){0,3}(?:anxiety|depression|insomnia|cancer|diabetes|illness|disease|infection|adhd|ptsd)\b|\b(?:stop|start|change|increase|reduce|skip|discontinue|quit|taper|replace|substitute|wean off)\s+(?:(?:taking|using|your|the|a|any|prescribed|daily|regular|own|current)\s+){0,6}(?:medications?|medicines?|meds|prescriptions?|antidepressants?|antipsychotics?|ssris?|snris?|pills?)\b|\binstead of\s+(?:(?:taking|using|your|the|a|any|prescribed|daily|regular|current)\s+){0,6}(?:medications?|medicines?|meds|prescriptions?|antidepressants?|antipsychotics?|ssris?|snris?|pills?)\b/i;
 const MAX_BODY_BYTES = 16 * 1024;
 
 async function readBoundedBody(req) {
@@ -352,6 +356,7 @@ export default async (req, context) => {
   // the logs never see the original email / phone / card / SSN.
   const redacted = redactPII(input.text);
   const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
+  const lastAssistant = [...session.messages].reverse().find((m) => m.role === "assistant");
   const flags = {
     pii_redacted: redacted.found,                     // e.g. ["email", "phone"]
     injection_suspected: looksLikeInjection(input.text), // flagged, NOT blocked
@@ -369,10 +374,41 @@ export default async (req, context) => {
   let contextText = "";
   const medicalKind = medicalReferral(redacted.text, lastUser?.content);
   flags.medical_referral = Boolean(medicalKind);
-  const followsPrevious = lastUser && /^(?:and|but|what about|how about|why\b|what if|tell me more|can you (?:explain|clarify)|how (?:can|do|should) i (?:do|practice|apply|use) (?:this|that)|what does (?:this|that) mean|what (?:can|could|should) i do (?:before|during|after) (?:my|the|a|an)\b)\b/i.test(redacted.text.trim());
-  if (!flags.distress && !medicalKind) {
+  const sourceRequested = !flags.distress && !medicalKind && requestsSource(redacted.text);
+  const previousClarification = lastAssistant?.kind === 'clarification' ? lastAssistant.clarification_topic : null;
+  const privacyPreference = previousClarification && previousClarification !== 'greeting' && declinesToElaborate(redacted.text);
+  const clarification = !flags.distress && !medicalKind && !sourceRequested ? clarificationFor(redacted.text, previousClarification) : null;
+  const clarificationContinuation = previousClarification && previousClarification !== 'greeting' &&
+    isClarificationContinuation(redacted.text, previousClarification);
+  const sleepContinuation = (previousClarification === 'sleep' || lastAssistant?.kind === 'sleep_support') &&
+    isClarificationContinuation(redacted.text, 'sleep');
+  // Generic lexical matches on "sleep" can retrieve descriptions of dreams
+  // and wakefulness. They are not evidence for insomnia advice. When a person
+  // describes a sleep difficulty, use cautious source-free support instead.
+  const sleepSupportNeeded = !flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference &&
+    (isPersonalSleepConcern(redacted.text) || sleepContinuation);
+  const followsPrevious = lastUser && (clarificationContinuation || /^(?:and|but|what about|how about|why\b|what if|tell me more|can you (?:explain|clarify)|how (?:can|do|should) i (?:do|practice|apply|use) (?:this|that)|what does (?:this|that) mean|what (?:can|could|should) i do (?:before|during|after) (?:my|the|a|an)\b)\b/i.test(redacted.text.trim()));
+  if (sourceRequested) {
+    // Only restore IDs verified for the immediately preceding assistant reply,
+    // not every retrieved candidate or a different prior conversation turn.
+    // Older saved replies predate context_used_ids; recover their explicit
+    // citations only if those IDs were among the context originally supplied.
+    const oldContext = Array.isArray(lastAssistant?.context_ids) ? lastAssistant.context_ids : [];
+    const oldCitations = [...String(lastAssistant?.content || '').matchAll(/\[(P\d+-\d+)\]/g)]
+      .map((match) => match[1]).filter((id) => oldContext.includes(id));
+    const used = passagesById(lastAssistant?.context_used_ids ?? oldCitations);
+    extra = { type: 'rag', source: 'Patanjali Yoga Sutras — Sri Sri Ravi Shankar', items: used, used_ids: used.map((item) => item.id), source_requested: true };
+  } else if (!flags.distress && !medicalKind && !clarification && !privacyPreference && !sleepSupportNeeded) {
     const query = followsPrevious ? `${lastUser.content} ${redacted.text}` : redacted.text;
-    const hits = retrieve(query);
+    let hits = retrieve(query);
+    // Lexical matches on words like "friends" sometimes surface text which
+    // discourages befriending unhappy people or dismisses loss. Do not present
+    // those chunks as support to someone expressing loneliness. This targeted
+    // safeguard does not substitute for broader source and model review.
+    if (/\b(?:lonel\w*|isolat\w*|disconnect\w*|friend\w*|famil\w*|companionship)\b/i.test(query)) {
+      const unhelpful = new Set(['P37-4', 'P38-1', 'P41-2', 'P88-1', 'P88-2']);
+      hits = hits.filter((hit) => !unhelpful.has(hit.id));
+    }
     extra = { type: "rag", source: "Patanjali Yoga Sutras — Sri Sri Ravi Shankar", items: hits };
     if (hits.length) contextText = formatPassages(hits);
   }
@@ -393,16 +429,44 @@ export default async (req, context) => {
   // ---- Step 8: prioritize crisis support and enforce sourced answers ---------
   // A crisis response must not depend on successful retrieval or a live model.
   // For ordinary questions, no retrieved evidence means no invented advice.
-  let behavior, reply, usage = { input_tokens: 0, output_tokens: 0 };
+  let behavior, reply, localReply = false, modelFlaggedCrisis = false, usage = { input_tokens: 0, output_tokens: 0 };
   if (flags.distress) {
     behavior = "CARE";
     reply = CRISIS_REPLY;
   } else if (medicalKind) {
     behavior = "CARE";
     reply = medicalReferralReply(medicalKind);
-  } else if (!extra.items.length) {
-    behavior = "DECLINE";
-    reply = "I couldn't find a relevant passage in the available PDF for that question. Try describing the situation in a different way.";
+  } else if (sourceRequested) {
+    localReply = true;
+    behavior = "ANSWER";
+    reply = extra.used_ids.length
+      ? `That response drew on Sri Sri Ravi Shankar's commentary on Patanjali's Yoga Sutras: ${extra.used_ids.map((id) => `[${id}]`).join(', ')}. These are reference IDs for the commentary, not sutra numbers.`
+      : "I didn't use a specific source for my last response, so I don't have a source reference to share for it.";
+  } else if (clarification) {
+    behavior = "ANSWER";
+    reply = clarification.reply;
+    localReply = true;
+  } else if (privacyPreference) {
+    behavior = 'ANSWER';
+    localReply = true;
+    reply = previousClarification === 'sleep'
+      ? "That's completely okay—you don't have to share more. If sleep problems keep happening, consider talking with a healthcare professional. We can take this at your own pace."
+      : "That's completely okay—you don't have to share more. If it feels comfortable, consider reaching out to someone you trust. We can take this at your own pace.";
+  } else if (sleepSupportNeeded) {
+    behavior = 'ANSWER';
+    localReply = true;
+    reply = sleepSupport(redacted.text, sleepContinuation ? lastUser?.content : '');
+  } else if (!extra?.items?.length) {
+    localReply = true;
+    if (isPersonalConcern(redacted.text) || (clarificationContinuation && isPersonalConcern(lastUser?.content))) {
+      behavior = "ANSWER";
+      // This is ordinary human support, not a claim about the source. Avoid an
+      // endless string of questions when someone declines to share details.
+      reply = supportiveFallback(redacted.text, clarificationContinuation ? lastUser?.content : '');
+    } else {
+      behavior = "DECLINE";
+      reply = "I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?";
+    }
   } else {
     try {
       const llm = await callLLM(history);
@@ -414,10 +478,27 @@ export default async (req, context) => {
       // Checking IDs is not proof that the interpretation is faithful.
       const mentioned = [...reply.matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((m) => m[1]);
       const allowed = new Set(extra.items.map((item) => item.id));
-      if (!parsed.ok || (behavior === "ANSWER" && (!mentioned.length || mentioned.some((id) => !allowed.has(id))))) {
+      const claimed = [...new Set([...parsed.source_ids ?? [], ...mentioned])];
+      if (behavior === 'CARE') {
+        // A model-detected crisis gets fixed immediate support even if the
+        // model supplied malformed or invented citations; never downgrade it.
+        reply = CRISIS_REPLY;
+        extra = null;
+        modelFlaggedCrisis = true;
+        flags.distress = true;
+      } else if (!parsed.ok || claimed.some((id) => typeof id !== 'string' || !allowed.has(id)) || (behavior === "ANSWER" && !claimed.length)) {
         flags.output_valid = false;
         behavior = "DECLINE";
-        reply = "I couldn't produce a reliably sourced response from these passages. Please try another question or consult the source directly.";
+        reply = "I'd like to understand your situation better. What feels most important to you right now?";
+      } else if (behavior === 'DECLINE') {
+        // Do not trust a model-selected label to bypass citation checks while
+        // smuggling unsupported advice or false attribution into the reply.
+        reply = "I'd like to understand your situation better. What feels most important to you right now?";
+      } else {
+        extra.used_ids = claimed;
+        // Older model responses may still contain inline IDs. Preserve them in
+        // metadata but keep the ordinary conversational reply free of labels.
+        reply = reply.replace(/\s*\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g, '').replace(/\s+([.,!?])/g, '$1').trim();
       }
       if (RESTRICTIVE_DIET.test(reply)) {
         flags.dietary_referral = true;
@@ -427,7 +508,13 @@ export default async (req, context) => {
         // model's original advice as part of the conversation.
         extra = null;
       }
-      if (behavior === "CARE" && !flags.dietary_referral && !reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
+      if (MEDICAL_CURE_ADVICE.test(reply)) {
+        flags.medical_referral = true;
+        behavior = 'CARE';
+        reply = "I can't advise on treatment or medication. A qualified healthcare professional can discuss what is appropriate for your situation.";
+        extra = null;
+      }
+      if (behavior === "CARE" && !flags.dietary_referral && !flags.medical_referral && !reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
     } catch (err) {
       // The model provider's error body can include user data; never log it.
       console.error(JSON.stringify({ event: "llm_error" }));
@@ -440,13 +527,15 @@ export default async (req, context) => {
 
   // ---- Step 11: save both messages to the session ----------------------------
   // The chat title is the first message (shown in the sidebar and downloads).
-  session.crisis_active = flags.distress;
+  session.crisis_active = flags.distress || modelFlaggedCrisis;
   session.messages.push({ role: "user", content: redacted.text, ts: new Date().toISOString() });
   session.messages.push({
     role: "assistant", content: reply, behavior, ts: new Date().toISOString(),
+    ...(clarification && { kind: 'clarification', clarification_topic: clarification.topic }),
+    ...(sleepSupportNeeded && { kind: 'sleep_support' }),
     // Remember which sources were used, so follow-ups can reuse RAG (step 7a)
     // and reopened chats can show the source tags.
-    ...(extra && { context_type: extra.type, context_source: extra.source, context_ids: extra.items.map((x, i) => x.id ?? `H${i + 1}`) }),
+    ...(extra && { context_type: extra.type, context_source: extra.source, context_ids: extra.items.map((x, i) => x.id ?? `H${i + 1}`), ...(extra.used_ids && { context_used_ids: extra.used_ids }), ...(extra.source_requested && { context_source_requested: true }) }),
   });
   if (!session.title) session.title = redacted.text.slice(0, 60);
   try {
@@ -467,8 +556,8 @@ export default async (req, context) => {
     reply,                    // what the user sees
     flags,
     context: extra,         // which reviews / headlines were given to the model (null if none)
-    provider: flags.distress || medicalKind ? "safety" : provider(),
-    model: flags.distress || medicalKind ? "none" : modelName(),
+    provider: flags.distress || medicalKind ? "safety" : localReply ? "local" : provider(),
+    model: flags.distress || medicalKind || localReply ? "none" : modelName(),
     prompt_version: PROMPT_VERSION,
     storage: await storageKind(), // netlify-blobs | memory
     latency_ms: Date.now() - started,

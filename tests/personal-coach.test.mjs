@@ -22,7 +22,8 @@ test('mock mode uses the PDF and labels the answer as an extractive preview', as
   assert.equal(body.provider, 'mock');
   assert.match(body.reply, /Demo mode/);
   assert.ok(body.context.items.length > 0);
-  assert.match(body.reply, new RegExp(`\\[${body.context.items[0].id}\\]`));
+  assert.doesNotMatch(body.reply, /\[P\d+-\d+\]/);
+  assert.deepEqual(body.context.used_ids, [body.context.items[0].id]);
   assert.ok(Number.isInteger(body.context.items[0].page));
 });
 

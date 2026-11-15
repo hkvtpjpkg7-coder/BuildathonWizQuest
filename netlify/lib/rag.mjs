@@ -117,5 +117,13 @@ export function formatPassages(hits) {
   ].join('\n');
 }
 
+/** Restore previously verified references for an explicit source request. */
+export function passagesById(ids) {
+  if (!Array.isArray(ids)) return [];
+  const byId = new Map(passages.map((item) => [item.id, item]));
+  return [...new Set(ids)].filter((id) => typeof id === 'string' && byId.has(id))
+    .slice(0, TOP_K).map((id) => ({ ...byId.get(id) }));
+}
+
 export const PASSAGE_COUNT = passages.length;
 export const SOURCE_INFO = SOURCE;

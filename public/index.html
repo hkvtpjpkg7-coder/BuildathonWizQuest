@@ -523,33 +523,44 @@
       el("div", { className: "starters" }, ...starters.map((t) => el("button", { type: "button", textContent: t, onclick: () => { input.value = t; send(); } })))));
   }
 
-  // Add one message bubble. For bot replies, also show tags:
-  // behavior (ANSWER / DECLINE / CARE), safety flags, provider and response time.
+  // Add one message bubble. Keep useful source details optional and separate
+  // from the conversation; the test runner still shows diagnostic labels.
   function addBubble(role, text, data) {
     thread.querySelector(".empty")?.remove();
     const b = el("div", { className: "msg " + role, textContent: text });
     if (role === "assistant" && data) {
-      const tags = [el("span", { className: "tag " + data.behavior, textContent: data.behavior })];
-      if (data.flags?.pii_redacted?.length) tags.push(el("span", { className: "tag", textContent: "PII redacted: " + data.flags.pii_redacted.join(", ") }));
-      if (data.flags?.injection_suspected) tags.push(el("span", { className: "tag", textContent: "injection suspected" }));
-      if (data.flags && data.flags.output_valid === false) tags.push(el("span", { className: "tag", textContent: "model ignored format" }));
+      const tags = [];
+      if (data.flags?.pii_redacted?.length) tags.push(el("span", { className: "tag", textContent: "Some personal details were hidden" }));
       if (data.storage === "not_saved") tags.push(el("span", { className: "tag", textContent: "This exchange was not saved" }));
-      // Show the specific passages sent to the model. Reopened chats retain IDs
-      // when the full source excerpts were not stored with the conversation.
-      // Live replies carry data.context; reopened chats carry context_type / context_ids.
+      // Use only validated references actually used in the reply, rather than
+      // every retrieved item. Older chats may contain inline reference IDs.
       const ctxType = data.context?.type ?? data.context_type;
       const ctxIds = Array.isArray(data.context?.items) ? data.context.items.map((x) => x.id).filter(Boolean) : data.context_ids ?? [];
-      if (ctxType === "rag") tags.push(el("span", { className: "tag src", textContent: `Source: ${ctxIds.length ? ctxIds.join(", ") : "no matching passage"}` }));
-      if (data.latency_ms != null) tags.push(el("span", { className: "tag", textContent: `${data.provider} · ${data.latency_ms} ms` }));
-      b.append(el("div", { className: "meta" }, ...tags));
+      const cited = new Set([...String(text).matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((match) => match[1]));
+      const used = data.context?.used_ids ?? data.context_used_ids;
+      const citedIds = ctxType === "rag" ? ctxIds.filter((id) => Array.isArray(used) ? used.includes(id) : cited.has(id)) : [];
+      const sourceRequested = data.context?.source_requested ?? data.context_source_requested ?? false;
+      // Historical answers included internal reference IDs in their prose.
+      // Hide those by default while preserving them when explicitly requested.
+      if (!sourceRequested && citedIds.length) {
+        b.textContent = String(text).replace(/(?:\s*\[[A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*\](?:\s*[,;]\s*(?=\[))?)+/g, (group) => {
+          const ids = [...group.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1]);
+          return ids.every((id) => citedIds.includes(id)) ? "" : group;
+        }).replace(/[ \t]+([.,!?;:])/g, "$1").trim();
+      }
+      if (tags.length) b.append(el("div", { className: "meta" }, ...tags));
 
-      // "Sources" dropdown: exactly what was given to the model, so you can check its answer.
-      if (data.context?.items?.length) {
-        const list = el("ul", { className: "sources" }, ...data.context.items.map((x, i) => {
-          const page = Number.isInteger(x.page) && x.page > 0 ? ` · PDF page ${x.page}` : "";
-          return el("li", {}, el("b", { textContent: `[${x.id || `source ${i + 1}`}]${page}` }), el("span", { className: "source-text", textContent: x.text || "" }));
+      // The source is a commentary on the sutras, not a direct sutra quote.
+      const citedItems = (Array.isArray(data.context?.items) ? data.context.items : []).filter((item) => citedIds.includes(item.id));
+      if (citedIds.length) {
+        const list = el("ul", { className: "sources" }, ...citedItems.map((item) => {
+          const page = Number.isInteger(item.page) && item.page > 0 ? ` · page ${item.page}` : "";
+          return el("li", {}, el("b", { textContent: `[${item.id}]${page}` }), el("span", { className: "source-text", textContent: item.text || "" }));
         }));
-        b.append(el("details", { className: "src-list" }, el("summary", { textContent: `Source passages provided to the model (${data.context.items.length})` }), el("p", { textContent: data.context.source || "Patanjali Yoga Sutras source document" }), list));
+        const details = el("details", { className: "src-list" }, el("summary", { textContent: "Explore the reference" }), el("p", { textContent: "Sri Sri Ravi Shankar’s commentary on Patanjali’s Yoga Sutras" }));
+        if (citedItems.length) details.append(list);
+        else details.append(el("p", { textContent: `Reference IDs: ${citedIds.join(", ")}. The reference text is not saved with this conversation.` }));
+        b.append(details);
       }
     }
     thread.append(b);
@@ -634,7 +645,7 @@
     try {
       const s = await api("/api/session?id=" + encodeURIComponent(id));
       thread.replaceChildren();
-      for (const m of s.messages) addBubble(m.role, m.content, m.role === "assistant" ? { behavior: m.behavior, context_type: m.context_type, context_ids: m.context_ids } : null);
+      for (const m of s.messages) addBubble(m.role, m.content, m.role === "assistant" ? { behavior: m.behavior, context_type: m.context_type, context_ids: m.context_ids, context_used_ids: m.context_used_ids, context_source_requested: m.context_source_requested } : null);
       if (!s.messages.length) renderEmpty();
     } catch (err) {
       if (err.status === 404) {

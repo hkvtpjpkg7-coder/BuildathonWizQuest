@@ -55,6 +55,7 @@ test('ordinary references to a fast-paced day and breakfast are not blocked', as
     assert.equal(response.status, 200);
     assert.equal(body.behavior, 'ANSWER');
     assert.equal(body.flags.dietary_referral, false);
-    assert.equal(body.reply, benign);
+    assert.equal(body.reply, 'During a fast-paced day, pause after breakfast and take a breath.');
+    assert.deepEqual(body.context.used_ids, [source]);
   });
 });

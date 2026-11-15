@@ -119,7 +119,10 @@ export function parseModelOutput(raw) {
     const behavior = String(obj.behavior ?? "").toUpperCase();
     const reply = String(obj.reply ?? "").trim();
     if (!BEHAVIORS.includes(behavior) || !reply) throw new Error("bad fields");
-    return { ok: true, behavior, reply: reply.slice(0, 1500) };
+    // Keep source identifiers separate from user-facing prose. The caller must
+    // verify each identifier against the current retrieval results.
+    const source_ids = Array.isArray(obj.source_ids) ? obj.source_ids : [];
+    return { ok: true, behavior, reply: reply.slice(0, 1500), source_ids };
   } catch {
     // Not valid JSON. Often the answer was cut off (too long for max_tokens),
     // e.g. {"behavior": "DECLINE", "reply": "I can't summarise tha
