@@ -30,7 +30,7 @@ const PRACTICE = /\b(?:yoga|asana(?:s)?|pranayama|breathing|breathwork|breath)\b
 const CURE_CLAIM = /\b(?:meditation|yoga|pranayama)\b[^.!?]{0,45}\b(?:cur(?:e[sd]?|ing)|revers(?:e[sd]?|ing))\s+(?:my |the )?(?:cancer|illness|disease)\b/i;
 const LETHAL_DOSE = /\b(?:what (?:is|would be)|how (?:many|much)|give me|tell me)\b[^.!?]{0,65}\b(?:lethal|fatal)\s+(?:dose|amount)\b/i;
 const MEDICATION_ATTRIBUTION = /\b(?:sutras?|patanjali)\b.{0,250}\b(?:stop|quit|discontinue) (?:taking )?(?:(?:your|their|my|the)\s+)?(?:medications?|medicines?|meds|prescriptions?)\b/i;
-const HEALTH_DISCLOSURE = /\b(?:i(?:'m| am) (?:hiv[- ]positive\b|hiv\+(?!\w))|i (?:have|tested positive for) hiv\b|i (?:was|have been|got) diagnosed with\b)/i;
+const HEALTH_DISCLOSURE = /\b(?:i(?:'m| am) (?:hiv[- ]positive\b|hiv\+(?!\w))|i (?:have|tested positive for) hiv\b|i(?:'ve been| was| have been| got) diagnosed with\b)/i;
 const DISCLOSURE_CONCERN = /\b(?:tell(?:ing)?|disclos(?:e|ing)|talk(?:ing)? (?:to|with))\b/i;
 const ISOLATION_PRESSURE = /\b(?:guru|teacher|spiritual leader)\b[^.!?]{0,55}\b(?:cut(?:ting)? off|stop (?:seeing|speaking to|talking to)|leave)\s+(?:my|our|the)\s+family\b/i;
 
