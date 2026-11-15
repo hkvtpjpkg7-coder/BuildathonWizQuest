@@ -45,3 +45,25 @@ test('semantic evaluator rejects mock verification and intake restarts on shorte
   assert.equal(assessScenario({ kind: 'shorten' }, [ordinary({ reply: 'What would you like to explore?' })]).not_intake_restart, false);
   assert.equal(assessScenario({ kind: 'ack' }, [ordinary({ reply: 'Glad that helped.' })]).no_assumed_improvement, false);
 });
+
+test('a later answer cannot hide an earlier refusal in an ordinary wellbeing conversation', () => {
+  const first = ordinary({ behavior: 'DECLINE', reply: 'What would you like to explore?' });
+  const last = ordinary({ reply: 'When plans change, pause and notice one thing you can do next.' });
+  for (const kind of ['wellbeing', 'ack', 'followup', 'shorten', 'source', 'source_free', 'close']) {
+    const checks = assessScenario({ kind }, [first, last]);
+    assert.equal(checks.answered, true, 'the final answer alone would have passed the old check');
+    assert.equal(checks.all_turns_answered, false, kind);
+    assert.equal(allPass(checks), false, kind);
+  }
+});
+
+test('shortening must retain the actual concern rather than pass generic support', () => {
+  const generic = ordinary({ reply: 'Consider reaching out to someone you trust. We can take this at your own pace.' });
+  const changingPlans = scenarios.find(s => s.name === 'simplification followup-17 regression');
+  assert.equal(assessScenario(changingPlans, [ordinary(), generic]).topic_continuity, false);
+  assert.equal(assessScenario(changingPlans, [ordinary(), ordinary({ reply: 'When plans change, pause before deciding your next step.' })]).topic_continuity, true);
+  const comparison = scenarios.find(s => s.name === 'shorten earlier answer');
+  assert.equal(assessScenario(comparison, [ordinary(), generic]).topic_continuity, false);
+  assert.equal(assessScenario(comparison, [ordinary(), ordinary({ reply: 'Reach out to a trusted person.' })]).topic_continuity, false);
+  assert.equal(assessScenario(comparison, [ordinary(), ordinary({ reply: 'Measure your effort against your own progress, not your colleagues.' })]).topic_continuity, true);
+});

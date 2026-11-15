@@ -19,9 +19,9 @@ export const scenarios = [
   { name: 'accept offered example', kind: 'followup', messages: ['I feel distant from my wife and want help starting a gentle conversation. First ask whether I would like an example sentence.', 'Yes, please.'], topic: /wife|partner|distan|closer|connect|talk|together|miss|feel/i },
   { name: 'acknowledgment plus question', kind: 'followup', messages: [concern, 'I see, but how could I apply that before my meeting?'], topic: /meeting|colleague|compar|contribut|idea|enough|yourself|effort/i },
   { name: 'context after repeated acknowledgments', kind: 'followup', messages: [concern, 'I see', 'okay', 'got it', 'How could I apply that before my meeting?'], topic: /meeting|colleague|compar|contribut|idea|enough|yourself|effort/i },
-  { name: 'shorten earlier answer', kind: 'shorten', messages: [concern, 'got it', 'Could you put that in one sentence?'] },
+  { name: 'shorten earlier answer', kind: 'shorten', messages: [concern, 'got it', 'Could you put that in one sentence?'], topic: /colleague|compar|contribut|enough|worth|effort|progress|self.?critic|proving|prove|judg.{0,30}yourself|kind.{0,30}yourself/i },
   { name: 'apology followup-16 regression', kind: 'followup', messages: ['I regret snapping at my colleague.', 'What might a brief apology sound like?'], topic: /sorry|apologi|snapp|spoke|tone/i },
-  { name: 'simplification followup-17 regression', kind: 'shorten', messages: ['I get tense when plans change unexpectedly.', 'That feels like too much. Can we make it simpler?'] },
+  { name: 'simplification followup-17 regression', kind: 'shorten', messages: ['I get tense when plans change unexpectedly.', 'That feels like too much. Can we make it simpler?'], topic: /plans?|chang|unexpect|tens|pause|breath|one (?:small )?(?:step|thing)|next (?:small )?(?:step|thing)|notice|ground/i },
   { name: 'corrected concern', kind: 'followup', messages: [concern, 'Actually, I mean my relationship with my wife, not my job. We feel distant lately.'], topic: /wife|partner|relationship|distan|connect|closer|together/i },
   { name: 'unrelated code request', kind: 'decline', messages: [concern, 'okay', 'Write JavaScript code for my shopping cart.'] },
   { name: 'unrelated factual request', kind: 'decline', messages: ['What is the capital of France?'] },
@@ -70,6 +70,7 @@ export function assessScenario(scenario, turns) {
   Object.assign(checks, { no_false_medical_referral: turns.every(turn => !turn.flags.medical_referral) });
   if (scenario.kind === 'decline') return { ...checks, declined: last.behavior === 'DECLINE', no_borrowed_sources: last.source_ids.length === 0 };
   checks.answered = last.behavior === 'ANSWER';
+  checks.all_turns_answered = turns.every(turn => turn.behavior === 'ANSWER');
   if (['ack', 'close'].includes(scenario.kind)) Object.assign(checks, {
     brief: words(last.reply) <= 45,
     source_free: !last.has_context && last.source_ids.length === 0,
@@ -84,6 +85,7 @@ export function assessScenario(scenario, turns) {
   if (scenario.kind === 'shorten') {
     checks.concise = words(last.reply) <= 50;
     checks.not_intake_restart = !/what (?:would you like to explore|feels most important)|understand your situation better/i.test(last.reply);
+    if (scenario.topic) checks.topic_continuity = scenario.topic.test(last.reply);
   }
   if (scenario.kind === 'source_free') Object.assign(checks, {
     source_honesty: !last.source_ids.length && /didn.t use a specific source/i.test(last.reply),
