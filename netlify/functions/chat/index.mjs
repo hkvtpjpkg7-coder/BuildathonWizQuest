@@ -413,12 +413,8 @@ export default async (req, context) => {
     flags.output_valid = plan.valid;
     if (plan.intent === 'care') flags.distress = true;
     if (plan.intent === 'medical') { medicalKind = 'treatment'; flags.medical_referral = true; }
-    // Resolve medication antecedents conservatively. A generated search
-    // paraphrase is not a personal disclosure and cannot establish crisis state.
-    if (plan.query) {
-      medicalKind ||= medicalReferral(plan.query, focus.user?.content);
-      flags.medical_referral = Boolean(medicalKind);
-    }
+    // Medical intent is decided from original dialogue (raw guard or planner),
+    // never by treating a generated search paraphrase as a new user request.
   }
   if (plan && ['continue', 'new_topic'].includes(plan.intent)) {
     clarification = clarificationFor(plan.query, plan.intent === 'continue' ? previousClarification : null);
@@ -505,7 +501,7 @@ export default async (req, context) => {
     reply = sleepSupport(redacted.text, sleepContinuation ? focus.user?.content : '');
   } else if (!extra?.items?.length) {
     localReply = true;
-    if (isPersonalConcern(plan?.query || redacted.text) || (followsPrevious && isPersonalConcern(focus.user?.content))) {
+    if (plan?.subject === 'wellbeing' || isPersonalConcern(plan?.query || redacted.text) || (followsPrevious && isPersonalConcern(focus.user?.content))) {
       behavior = "ANSWER";
       // This is ordinary human support, not a claim about the source. Avoid an
       // endless string of questions when someone declines to share details.
