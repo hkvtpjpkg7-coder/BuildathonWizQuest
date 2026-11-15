@@ -17,13 +17,29 @@ const staticFiles = new Map([
   ['/data/sample_tests.csv', ['data/sample_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/demo_tests.csv', ['data/demo_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/rag_api_tests.csv', ['data/rag_api_tests.csv', 'text/csv; charset=utf-8']],
+  // Mentor tab: the Yoga Sutras Chapter 1 lessons
+  ['/lessons/', ['lessons/index.html', 'text/html; charset=utf-8']],
+  ['/lessons/index.html', ['lessons/index.html', 'text/html; charset=utf-8']],
+  ['/lessons/engine.js', ['lessons/engine.js', 'text/javascript; charset=utf-8']],
+  ['/lessons/lessons.js', ['lessons/lessons.js', 'text/javascript; charset=utf-8']],
+  ['/lessons/fonts/fonts.css', ['lessons/fonts/fonts.css', 'text/css; charset=utf-8']],
+  ['/lessons/fonts/mukta-devanagari-400-normal.woff2', ['lessons/fonts/mukta-devanagari-400-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/mukta-devanagari-600-normal.woff2', ['lessons/fonts/mukta-devanagari-600-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/mukta-devanagari-700-normal.woff2', ['lessons/fonts/mukta-devanagari-700-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/mukta-latin-400-normal.woff2', ['lessons/fonts/mukta-latin-400-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/mukta-latin-600-normal.woff2', ['lessons/fonts/mukta-latin-600-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/mukta-latin-700-normal.woff2', ['lessons/fonts/mukta-latin-700-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/tiro-devanagari-sanskrit-devanagari-400-normal.woff2', ['lessons/fonts/tiro-devanagari-sanskrit-devanagari-400-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/tiro-devanagari-sanskrit-latin-400-normal.woff2', ['lessons/fonts/tiro-devanagari-sanskrit-latin-400-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/yatra-one-devanagari-400-normal.woff2', ['lessons/fonts/yatra-one-devanagari-400-normal.woff2', 'font/woff2']],
+  ['/lessons/fonts/yatra-one-latin-400-normal.woff2', ['lessons/fonts/yatra-one-latin-400-normal.woff2', 'font/woff2']],
 ]);
 const securityHeaders = {
   'cache-control': 'no-store',
   'x-content-type-options': 'nosniff',
-  'x-frame-options': 'DENY',
+  'x-frame-options': 'SAMEORIGIN',
   'referrer-policy': 'strict-origin-when-cross-origin',
-  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.firebaseapp.com; frame-src https://*.firebaseapp.com https://accounts.google.com",
+  'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://*.firebaseapp.com; img-src 'self' data:; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; frame-ancestors 'self'",
 };
 const jsonError = (status, error) => Response.json({ error }, { status, headers: securityHeaders });
 

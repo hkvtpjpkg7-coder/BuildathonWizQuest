@@ -3,9 +3,9 @@
 The personal coach is the current first phase of WiserWave. It searches locally
 indexed excerpts of the supplied *Patanjali Yoga Sutras* PDF and uses a model to
 offer a tentative reflection with references to physical PDF page numbers.
-Conversation history is kept within the current session. A front-end Mentor
-prototype with sample data is described in `docs/MENTOR.md`; a real Mentor
-service and password-based accounts are future work; see `docs/AUTH_PLAN.md`.
+Conversation history is kept within the current session. The Mentor tab holds
+the Yoga Sutras Chapter 1 lessons, described in `docs/MENTOR.md`;
+password-based accounts are future work; see `docs/AUTH_PLAN.md`.
 
 ## Run locally
 

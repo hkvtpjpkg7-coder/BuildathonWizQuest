@@ -1,0 +1,72 @@
+/* Self-hosted fonts for the lessons (SIL Open Font License 1.1, from @fontsource 5.3.0; see the LICENSE files here). */
+/* yatra-one-devanagari-400-normal */
+@font-face {
+  font-family: 'Yatra One';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./yatra-one-devanagari-400-normal.woff2) format('woff2');
+}/* tiro-devanagari-sanskrit-devanagari-400-normal */
+@font-face {
+  font-family: 'Tiro Devanagari Sanskrit';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./tiro-devanagari-sanskrit-devanagari-400-normal.woff2) format('woff2');
+}/* mukta-devanagari-400-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./mukta-devanagari-400-normal.woff2) format('woff2');
+}/* mukta-devanagari-600-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(./mukta-devanagari-600-normal.woff2) format('woff2');
+}/* mukta-devanagari-700-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./mukta-devanagari-700-normal.woff2) format('woff2');
+}/* yatra-one-latin-400-normal */
+@font-face {
+  font-family: 'Yatra One';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./yatra-one-latin-400-normal.woff2) format('woff2');
+}/* tiro-devanagari-sanskrit-latin-400-normal */
+@font-face {
+  font-family: 'Tiro Devanagari Sanskrit';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./tiro-devanagari-sanskrit-latin-400-normal.woff2) format('woff2');
+}/* mukta-latin-400-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./mukta-latin-400-normal.woff2) format('woff2');
+}/* mukta-latin-600-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(./mukta-latin-600-normal.woff2) format('woff2');
+}/* mukta-latin-700-normal */
+@font-face {
+  font-family: 'Mukta';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./mukta-latin-700-normal.woff2) format('woff2');
+}
