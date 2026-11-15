@@ -26,7 +26,7 @@
 //   12 Return the reply, and log (without message text)
 // =============================================================================
 
-import { loadSession, saveSession, newSession, isValidId, storageKind } from "../../lib/store.mjs";
+import { loadSession, saveSession, newSession, isValidId, storageKind, EVALUATION_OWNER } from "../../lib/store.mjs";
 import {
   validateMessage, redactPII, looksLikeInjection, showsDistress, explicitlySafe, parseModelOutput,
   SUPPORT_LINE, MAX_TURNS_PER_SESSION, HISTORY_TURNS_SENT,
@@ -35,6 +35,7 @@ import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm
 import { retrieve, formatPassages } from "../../lib/rag.mjs";
 import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
 import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
+import { evaluationSettings, createEvaluationLimiter } from "../../lib/evaluation.mjs";
 
 // -----------------------------------------------------------------------------
 // Rate limiter used in step 3.
@@ -45,6 +46,7 @@ import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
 // use a shared store (e.g. Netlify Blobs or Redis) for real traffic.
 // -----------------------------------------------------------------------------
 const hits = new Map(); // ip -> [timestamp, timestamp, ...]
+const admitEvaluation = createEvaluationLimiter();
 // This emergency marker is best-effort, instance-local and expires after ten
 // minutes. It contains session IDs and expiry times only, never message text.
 const limitedCrisisMarkers = new Map();
@@ -183,8 +185,20 @@ export default async (req, context) => {
   if (req.method !== "POST") return Response.json({ error: "Use POST" }, { status: 405 });
 
   let identity;
-  try { identity = await authenticateRequest(req); } catch (error) { return authFailure(error); }
+  let evalOptions;
+  try {
+    // Only a completely absent Authorization header may enter this isolated
+    // evaluation path. Invalid/empty/expired bearer tokens never downgrade.
+    if (!req.headers.has('authorization')) evalOptions = evaluationSettings();
+    identity = evalOptions?.enabled
+      ? { enabled: true, uid: EVALUATION_OWNER, evaluation: true }
+      : await authenticateRequest(req);
+  } catch (error) { return authFailure(error); }
   const ownerId = identity.uid;
+  const callerIp = context?.ip ?? "unknown";
+  // Reserve from the evaluator's independent per-IP and process-wide budget
+  // before any storage lookup or model call. Never consume user rate buckets.
+  const evaluationLimited = identity.evaluation && !admitEvaluation(callerIp, evalOptions);
 
   let body;
   try {
@@ -194,11 +208,18 @@ export default async (req, context) => {
     return Response.json({ error: 'Body must be JSON: {"message": "..."}' }, { status: 400 });
   }
 
-  const callerIp = context?.ip ?? "unknown";
+  if (evaluationLimited) {
+    const text = typeof body?.message === 'string' ? body.message : '';
+    const marked = isValidId(body?.session_id) && hasLimitedCrisisMarker(body.session_id, ownerId);
+    if (showsDistress(text)) return limitedCrisisResponse(marked ? body : {}, text, started, ownerId);
+    if (marked && !explicitlySafe(text)) return limitedCrisisResponse(body, text, started, ownerId);
+    if (marked && explicitlySafe(text)) limitedCrisisMarkers.delete(markerKey(body.session_id, ownerId));
+    return Response.json({ error: 'Evaluation request limit reached.' }, { status: 429, headers: { 'retry-after': '60', 'cache-control': 'no-store' } });
+  }
   // Authenticated callers are throttled before any session lookup. Crisis
   // responses remain available; a bounded lookup may recover an owned active
   // crisis, but never looks in another account's namespace.
-  if (identity.enabled && rateLimited(callerIp)) {
+  if (identity.enabled && !identity.evaluation && rateLimited(callerIp)) {
     const text = typeof body?.message === 'string' ? body.message : '';
     const validId = isValidId(body?.session_id);
     const marked = validId && hasLimitedCrisisMarker(body.session_id, ownerId);
@@ -434,6 +455,9 @@ export default async (req, context) => {
     if (flags.distress) return limitedCrisisResponse(body, input.text, started, ownerId);
     throw error;
   }
+  // Keep follow-ups in an active evaluator crisis on the immediate-support path
+  // even when its public request budget is reached in this process.
+  if (identity.evaluation && flags.distress) rememberLimitedCrisis(session.id, ownerId);
 
   // ---- Step 12: respond, and log without message text ------------------------
   const response = {

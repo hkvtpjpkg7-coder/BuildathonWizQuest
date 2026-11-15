@@ -26,6 +26,14 @@ import { createHash } from 'node:crypto';
 const memory = new Map(); // fallback store: id -> session
 let blobs;                // undefined = not checked yet, null = not available, otherwise the Blobs store
 
+// An object identity domain can never be a Firebase UID (which is a string).
+// Its separate key prefix also keeps evaluator chats away from legacy guest
+// records, whose keys are bare UUIDs. It is serialized with each eval chat.
+export const EVALUATION_OWNER = Object.freeze({ domain: 'organizer-evaluation' });
+const isEvaluationOwner = (ownerId) => ownerId && typeof ownerId === 'object' &&
+  !Array.isArray(ownerId) && ownerId.domain === EVALUATION_OWNER.domain &&
+  Object.keys(ownerId).length === 1;
+
 // Decide once which store to use, and remember the answer.
 async function blobStore() {
   if (blobs !== undefined) return blobs;
@@ -49,6 +57,7 @@ export async function storageKind() {
 // Authenticated records use a distinct key space; old ownerless conversations
 // are never silently attached to a user who happens to know their identifier.
 function storageKey(id, ownerId) {
+  if (isEvaluationOwner(ownerId)) return `evaluation-${id}`;
   return ownerId ? `user-${createHash('sha256').update(ownerId).digest('hex')}-${id}` : id;
 }
 
@@ -56,7 +65,9 @@ export async function loadSession(id, ownerId = null) {
   const store = await blobStore();
   const key = storageKey(id, ownerId);
   const session = store ? (await store.get(key, { type: "json" })) ?? null : memory.get(key) ?? null;
-  if (ownerId && session?.owner_id !== ownerId) return null;
+  if (isEvaluationOwner(ownerId)) {
+    if (!isEvaluationOwner(session?.owner_id)) return null;
+  } else if (ownerId && session?.owner_id !== ownerId) return null;
   return session;
 }
 
