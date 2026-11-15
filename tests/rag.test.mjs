@@ -46,6 +46,18 @@ test('named sutras retrieve matching commentary without borrowing evidence for u
   assert.deepEqual(retrieve('What yoga posture is recommended by Yoga Sutra 2.60?'), []);
 });
 
+test('ordinal and short range questions use only reviewed chapters and passages', () => {
+  assert.deepEqual(requestedSutras('What is the second sutra of the Yoga Sutras?'), ['1.2']);
+  assert.deepEqual(requestedSutras('What is the second sutra of chapter II of the Yoga Sutras?'), []);
+
+  const remedies = retrieve('How do the obstacles listed in 1.30 relate to the remedies given in 1.32 to 1.39?');
+  assert.deepEqual(remedies.slice(0, 3).map((hit) => hit.sutras), [['1.30'], ['1.32'], ['1.39']]);
+
+  const karma = retrieve('How does the karma theory in 2.12-2.14 connect with the discussion of karma in 4.7-4.8?');
+  assert.deepEqual(new Set(karma.flatMap((hit) => hit.sutras)), new Set(['2.12', '2.13', '2.14']));
+  assert.deepEqual(retrieve('Why are the siddhis obstacles to samadhi in Sutra 3.37?'), []);
+});
+
 test('Sanskrit and list questions retrieve supporting passages and note extraction discrepancies', () => {
   const vrittis = retrieve('What are the five vṛttis?');
   assert.match(vrittis[0].text, /pramanaviparyayavikalpanidrasmruti/i);

@@ -17,8 +17,23 @@ const SUTRA_PASSAGES = new Map([
   ['1.12', ['P16-1']],
   ['1.13', ['P13-2']],
   ['1.15', ['P16-1', 'P16-2']],
+  ['1.30', ['P32-1']],
+  ['1.32', ['P36-2', 'P37-1']],
   ['1.33', ['P37-2', 'P40-1']],
+  ['1.34', ['P40-2']],
+  ['1.35', ['P41-1']],
+  ['1.36', ['P41-2']],
+  ['1.37', ['P43-4']],
+  ['1.38', ['P44-2']],
+  ['1.39', ['P46-3']],
+  ['1.50', ['P52-3', 'P53-1']],
+  ['2.1', ['P56-2', 'P57-3']],
   ['2.3', ['P67-3', 'P70-2']],
+  ['2.12', ['P71-1']],
+  ['2.13', ['P71-3']],
+  ['2.14', ['P73-2']],
+  ['2.15', ['P74-1']],
+  ['2.16', ['P75-4']],
   ['2.29', ['P80-3']],
   ['2.30', ['P81-1']],
   ['2.32', ['P86-4', 'P87-1']],
@@ -34,7 +49,11 @@ const TEACHING_TOPICS = [
   ['1.13', /\babhyasa\b/],
   ['1.15', /\bvairagya\b/],
   ['1.33', /\b(?:maitri|karuna|mudita|upeksh[ae])\b/],
+  ['1.50', /\bsa[mn]skaras?\b/],
+  ['2.1', /\bkriya[ -]yoga\b/],
   ['2.3', /\b(?:kleshas?|kle[cs]as?)\b/],
+  ['2.15', /\bsa[mn]skaras?\b/],
+  ['2.16', /\bheyam[ -]duh?kham[ -]anagatam\b/],
   ['2.29', /\b(?:(?:eight|8) limbs?|ash?tanga)\b/],
   ['2.30', /\b(?:yamas?|ahi[ṃm]sa|satya|asteya|astheya|aparigraha|brahmac[h]?arya)\b/],
   ['2.32', /\b(?:niyamas?|sh?auch?a|sa[nm]tosh?a|s[vw]adhyaya|ish?[vw]?ara[ -]?pranidhana)\b/],
@@ -48,11 +67,23 @@ const foldText = (value) => String(value || '').normalize('NFKD').replace(/\p{M}
 /** Recognize chapter-and-verse references, not numbers in ordinary questions. */
 export function requestedSutras(question) {
   const text = foldText(question).trim();
-  if (!/\b(?:sutras?|yogasutras?|patanjali|padas?)\b/.test(text) &&
+  const ordinals = [...text.matchAll(/\b(first|second) sutra (?:of|in) (?:the )?(?:patanjali(?:['’]s)? )?yoga\s*sutras\b/g)]
+    .map(([, ordinal]) => ordinal === 'first' ? '1.1' : '1.2');
+  const named = /\b(?:sutras?|yogasutras?|patanjali|padas?)\b/.test(text);
+  const teachingTerms = /\b(?:heyam\b|karma (?:theory|in)|obstacles? (?:listed|in)|remedies (?:given|in))/.test(text);
+  if (!named && !teachingTerms &&
       !/^(?:[1-4]|i{1,3}|iv)[.:]\d{1,3}[.?!]*$/.test(text)) return [];
 
   const matches = text.matchAll(/(?<![\d.])\b(?:chapter\s+|pada\s+)?(iv|iii|ii|i|\d{1,2})(?:[.:]|\s*,?\s+(?:sutra|verse)\s+)(\d{1,3})(?!\w|[.:]\d)/g);
-  return [...new Set([...matches].map(([, chapter, sutra]) => `${romanChapter.get(chapter) ?? Number(chapter)}.${Number(sutra)}`))];
+  const numbers = [...matches].map(([, chapter, sutra]) => `${romanChapter.get(chapter) ?? Number(chapter)}.${Number(sutra)}`);
+  // Preserve the requested endpoints when the passage budget is smaller than
+  // the range. Short, same-chapter ranges can also contribute intervening sutras.
+  const within = [];
+  for (const [, chapter, start, end] of text.matchAll(/\b([1-4])\.(\d{1,2})(?:\s*[-–—]\s*|\s+(?:to|through)\s+)\1\.(\d{1,2})\b/g)) {
+    if (Number(end) - Number(start) > 7) continue;
+    for (let number = Number(start) + 1; number < Number(end); number++) within.push(`${chapter}.${number}`);
+  }
+  return [...new Set([...numbers, ...ordinals, ...within])];
 }
 
 function teachingHits(question, limit) {

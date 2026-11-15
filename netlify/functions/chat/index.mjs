@@ -469,6 +469,9 @@ export default async (req, context) => {
     const previousEvidence = followsPrevious && plan.reuse_previous && focus.assistant?.behavior === 'ANSWER'
       ? verifiedReplyPassages(focus.assistant) : [];
     let hits = explicitSutras.length ? retrieve(redacted.text) : previousEvidence.length ? previousEvidence : retrieve(query);
+    // The planner can translate technical terms into a script the lexical
+    // index does not recognize. Keep the user's own wording as a fallback.
+    if (!hits.length && plan?.subject === 'teaching' && query !== redacted.text) hits = retrieve(redacted.text);
     // Lexical matches on words like "friends" sometimes surface text which
     // discourages befriending unhappy people or dismisses loss. Do not present
     // those chunks as support to someone expressing loneliness. This targeted
@@ -495,7 +498,8 @@ export default async (req, context) => {
   // ---- Step 8: prioritize crisis support and enforce sourced answers ---------
   // A crisis response must not depend on successful retrieval or a live model.
   // For ordinary questions, no retrieved evidence means no invented advice.
-  let behavior, reply, localReply = false, modelFlaggedCrisis = false, usage = plan?.usage || { input_tokens: 0, output_tokens: 0 };
+  let behavior, reply, localReply = false, modelFlaggedCrisis = false, useEverydaySupport = false;
+  let usage = plan?.usage || { input_tokens: 0, output_tokens: 0 };
   if (flags.distress) {
     behavior = "CARE";
     reply = crisisReply(redacted.text);
@@ -544,28 +548,11 @@ export default async (req, context) => {
     reply = sleepSupport(redacted.text, sleepContinuation ? focus.user?.content : '');
   } else if (!extra?.items?.length) {
     localReply = true;
-    if (plan?.subject === 'wellbeing' || isPersonalConcern(plan?.query || redacted.text) || (followsPrevious && isPersonalConcern(focus.user?.content))) {
-      behavior = "ANSWER";
-      // This is ordinary human support, not a claim about the source. Avoid an
-      // endless string of questions when someone declines to share details.
-      reply = supportiveFallback(plan?.query || redacted.text, followsPrevious ? focus.user?.content : '');
-      extra = null;
-      if (plan?.subject === 'wellbeing' && provider() !== 'mock') {
-        const support = await supportConversationTurn(redacted.text, session.messages);
-        usage = { input_tokens: (usage.input_tokens || 0) + (support.usage.input_tokens || 0), output_tokens: (usage.output_tokens || 0) + (support.usage.output_tokens || 0) };
-        if (support.crisis) {
-          behavior = 'CARE'; reply = crisisReply(redacted.text);
-          modelFlaggedCrisis = true; flags.distress = true;
-        } else if (support.reply) {
-          reply = support.reply;
-          localReply = false; // Apply the normal medical/dietary output guards.
-        } else {
-          flags.output_valid = false;
-        }
-      }
-    } else if (plan?.subject === 'teaching') {
+    if (plan?.subject === 'teaching') {
       behavior = 'DECLINE';
       reply = TEACHING_LIMIT_REPLY;
+    } else if (plan?.subject === 'wellbeing' || isPersonalConcern(plan?.query || redacted.text) || (followsPrevious && isPersonalConcern(focus.user?.content))) {
+      useEverydaySupport = true;
     } else {
       behavior = "DECLINE";
       reply = "I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?";
@@ -603,6 +590,7 @@ export default async (req, context) => {
       } else if (behavior === 'DECLINE') {
         // Do not trust a model-selected label to bypass citation checks while
         // smuggling unsupported advice or false attribution into the reply.
+        useEverydaySupport = plan?.subject === 'wellbeing' && !flags.injection_suspected;
         reply = plan?.subject === 'teaching' ? TEACHING_LIMIT_REPLY : "I'd like to understand your situation better. What feels most important to you right now?";
       } else {
         extra.used_ids = claimed;
@@ -614,6 +602,29 @@ export default async (req, context) => {
       // The model provider's error body can include user data; never log it.
       console.error(JSON.stringify({ event: "llm_error" }));
       return Response.json({ error: "The assistant is unavailable right now. Please try again." }, { status: 502 });
+    }
+  }
+
+  if (useEverydaySupport) {
+    behavior = 'ANSWER';
+    localReply = true;
+    extra = null;
+    reply = supportiveFallback(plan?.query || redacted.text, followsPrevious ? focus.user?.content : '');
+    if (plan?.subject === 'wellbeing' && provider() !== 'mock') {
+      const support = await supportConversationTurn(redacted.text, session.messages);
+      usage.input_tokens = (usage.input_tokens || 0) + (support.usage.input_tokens || 0);
+      usage.output_tokens = (usage.output_tokens || 0) + (support.usage.output_tokens || 0);
+      if (support.crisis) {
+        behavior = 'CARE';
+        reply = crisisReply(redacted.text);
+        modelFlaggedCrisis = true;
+        flags.distress = true;
+      } else if (support.reply) {
+        reply = support.reply;
+        localReply = false; // Apply the normal medical/dietary output guards.
+      } else {
+        flags.output_valid = false;
+      }
     }
   }
 

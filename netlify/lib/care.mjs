@@ -22,12 +22,14 @@ const PERCEPTION = /\b(?:i (?:keep |can |am )?hear(?:ing)? voices|(?:the |these 
 const PANIC = /\bpanic attacks?\b/i;
 const PERSONAL = /\b(?:i|my|me)\b/i;
 const THERAPY_CHANGE = /\b(?:quit(?:ting)?|stop(?:ping)?|drop(?:ping)?|replac(?:e|ing)|giv(?:e|ing) up)\s+(?:(?:my|the|going to)\s+)?(?:therapy|counsel(?:l)?ing|seeing (?:my|a) therapist)\b/i;
-const FOOD_RESTRICTION = /\b(?:(?:water|dry|prolonged|extended|multi-day|\d+-day) fast(?:ing)?|fast(?:ing|ed)? (?:for )?\d+\s+days?|(?:fasting|water fast)\b[^.!?]{0,50}\b(?:go longer|keep going|extend)|\d{2,3}\s*(?:kcal|calories)\s*(?:a|per|each|\/)?\s*day|starv(?:e|ing) myself)\b/i;
+const FOOD_RESTRICTION = /\b(?:(?:water|dry|prolonged|extended|multi-day|\d+-day) fast(?:ing)?|fast(?:ing|ed)? (?:for )?(?:\d+|two|three|four|five|six|seven|eight|nine|ten|multiple|several|a few)\s+days?|(?:fasting|water fast)\b[^.!?]{0,50}\b(?:go longer|keep going|extend)|\d{2,3}\s*(?:kcal|calories)\s*(?:a|per|each|\/)?\s*day|starv(?:e|ing) myself)\b/i;
 const BREATH_RISK = /\b(?:how long (?:can|should|do) i hold (?:my|the) breath|max(?:imum)?\s+(?:breath[- ]hold|prana)|(?:long|intense|extreme)\s+(?:breath retention|breath[- ]holds?|kumbhaka)|(?:hold(?:ing)?|retain(?:ing)?)\s+(?:my|the)\s+breath\s+for\s+(?:as long as|\d+\s+minutes?))\b/i;
 const PREGNANCY = /\b(?:pregnan(?:t|cy)|expecting a baby)\b/i;
 const INTENSE_PRACTICE = /\b(?:intense|forceful|advanced|rapid|breath retention|breath[- ]holds?|kumbhaka|kapalabhati|bhastrika)\b/i;
 const PRACTICE = /\b(?:yoga|asana(?:s)?|pranayama|breathing|breathwork|breath)\b/i;
 const CURE_CLAIM = /\b(?:meditation|yoga|pranayama)\b[^.!?]{0,45}\b(?:cur(?:e[sd]?|ing)|revers(?:e[sd]?|ing))\s+(?:my |the )?(?:cancer|illness|disease)\b/i;
+const LETHAL_DOSE = /\b(?:what (?:is|would be)|how (?:many|much)|give me|tell me)\b[^.!?]{0,65}\b(?:lethal|fatal)\s+(?:dose|amount)\b/i;
+const MEDICATION_ATTRIBUTION = /\b(?:sutras?|patanjali)\b.{0,250}\b(?:stop|quit|discontinue) (?:taking )?(?:(?:your|their|my|the)\s+)?(?:medications?|medicines?|meds|prescriptions?)\b/i;
 const HEALTH_DISCLOSURE = /\b(?:i(?:'m| am) (?:hiv[- ]positive\b|hiv\+(?!\w))|i (?:have|tested positive for) hiv\b|i (?:was|have been|got) diagnosed with\b)/i;
 const DISCLOSURE_CONCERN = /\b(?:tell(?:ing)?|disclos(?:e|ing)|talk(?:ing)? (?:to|with))\b/i;
 const ISOLATION_PRESSURE = /\b(?:guru|teacher|spiritual leader)\b[^.!?]{0,55}\b(?:cut(?:ting)? off|stop (?:seeing|speaking to|talking to)|leave)\s+(?:my|our|the)\s+family\b/i;
@@ -41,6 +43,8 @@ export function contextualCare(message, previousKind) {
   if (PERCEPTION.test(text)) return 'perception';
   if (THERAPY_CHANGE.test(text) && PERSONAL.test(text)) return 'therapy';
   if (PREGNANCY.test(text) && PRACTICE.test(text) && INTENSE_PRACTICE.test(text)) return 'pregnancy';
+  if (LETHAL_DOSE.test(text)) return 'lethal_dose';
+  if (MEDICATION_ATTRIBUTION.test(text)) return 'medication_claim';
   if (FOOD_RESTRICTION.test(text) && PERSONAL.test(text)) return 'restriction';
   if (BREATH_RISK.test(text)) return 'breath_retention';
   if (PANIC.test(text) && PERSONAL.test(text)) return 'panic';
@@ -58,10 +62,12 @@ const replies = {
   perception: "Hearing voices can feel unsettling, especially if you haven't been sleeping. Please tell someone you trust and contact a healthcare professional promptly. If the voices are telling you to hurt yourself or anyone else, or you can't stay safe, get emergency help now.",
   therapy: "It sounds like you're thinking about changing the support you receive. Please talk it through with your therapist before deciding. Reflection on the Yoga Sutras can be part of your life alongside professional care.",
   pregnancy: "I'd avoid recommending an intense breathing practice during pregnancy. Check with your prenatal healthcare team before trying it, and ask a qualified prenatal yoga teacher about options your care team is comfortable with. You can still explore the teaching through gentle reflection.",
-  restriction: "I'm concerned about what you're describing. You don't have to deprive yourself of food to practice discipline or detachment. Please talk with a healthcare professional for guidance and consider telling someone you trust. If you feel faint or very unwell, seek urgent medical help.",
+  restriction: "I'm concerned about the fasting or food restriction you're describing. You don't have to deprive yourself of food to practice discipline or detachment. Please talk with a healthcare professional for guidance and consider telling someone you trust. If you feel faint or very unwell, seek urgent medical help.",
   breath_retention: "There's no need to push a breath hold to prove progress. I can't give you a target or a way to hold it longer. Let your breathing return to its normal rhythm if you're practicing now. A qualified teacher can help you explore the practice without strain.",
   panic: "That sounds overwhelming. The Sutras aren't a treatment for recurring panic attacks. If it's comfortable right now, feel your feet on the floor and notice one thing you can see. A healthcare professional can help you understand what's happening and discuss support.",
   cure_claim: "Meditation isn't a cure for cancer or other illnesses. The Yoga Sutras can be a subject of reflection, and a qualified healthcare team can help with decisions about medical care.",
+  lethal_dose: "I can't provide a lethal dose. If you or someone else might have taken too much, contact emergency services or a poison control center immediately. Is this connected to a situation where someone needs help now?",
+  medication_claim: "I can't verify that instruction as part of the Yoga Sutras. If it raises a question about a medication, please check with the prescriber before making any change.",
   health_disclosure: "It can be hard to decide how to share personal health news with someone you care about. A healthcare provider or counselor can help you think through what to say and what support you need. You don't have to share any more details here.",
   isolation_pressure: "It makes sense to question advice that cuts you off from people you care about. You don't owe someone isolation to show commitment to a practice. It may help to talk with someone you trust outside that relationship and think about what would feel safe for you.",
 };
