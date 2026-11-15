@@ -11,6 +11,7 @@ const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
+  ['/data/coach_tests.csv', ['data/coach_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/sample_tests.csv', ['data/sample_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/demo_tests.csv', ['data/demo_tests.csv', 'text/csv; charset=utf-8']],
   ['/data/rag_api_tests.csv', ['data/rag_api_tests.csv', 'text/csv; charset=utf-8']],

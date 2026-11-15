@@ -7,6 +7,11 @@ and the [future authentication plan](docs/AUTH_PLAN.md). The material below is
 the original starter guide; its Mood Meter prompt, review data, and sample tests
 describe the previous example and are not the current coach's evaluation.
 
+Open **Test runner → Load sample coach tests → Run** for coach-specific examples.
+`npm test` runs those examples from the terminal; set `LLM_PROVIDER=mock` for
+an offline provider run. Automatic scores compare behavior labels only, so
+review the responses and citations.
+
 # Hackathon Chat Starter (original guide)
 
 A ChatGPT-style chat app you can run locally and deploy to the web in about 15 minutes.

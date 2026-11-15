@@ -9,6 +9,10 @@ test('private preview serves the coach and its known sample files only', async (
   assert.equal(home.status, 200);
   assert.match(await home.text(), /Personal Coach/);
   assert.equal((await routePreview(req('/data/sample_tests.csv'))).status, 200);
+  const coachTests = await routePreview(req('/data/coach_tests.csv'));
+  assert.equal(coachTests.status, 200);
+  assert.match(coachTests.headers.get('content-type'), /^text\/csv/);
+  assert.match(await coachTests.text(), /expected_behavior/i);
   assert.equal((await routePreview(req('/netlify/lib/llm.mjs'))).status, 404);
   assert.equal((await routePreview(req('/%2fetc%2fpasswd'))).status, 404);
 });

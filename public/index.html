@@ -149,23 +149,24 @@
     <section class="view" id="view-tests">
       <div id="tests">
         <div class="card">
-          <h2>Run a test file</h2>
-          <p class="hint">CSV columns: <code>id, group, turns, expected_behavior</code> (optional: <code>pass_if, fail_if</code>). Separate turns with <code>||</code>. Each test runs in its own new session, turn by turn, so follow-ups use memory. <code>expected_behavior</code> is ANSWER, DECLINE or CARE.</p>
-          <p class="hint">Upload coach-specific tests to evaluate this app. The preset files below belong to the old sentiment/reviews starter, so they do not measure the personal coach. Automatic scores compare response categories only; check the actual replies for source accuracy and safety.</p>
+          <h2>Test the personal coach</h2>
+          <p class="hint">Load sample coach questions or upload your own CSV. Each test starts a new conversation; follow-up turns share its context. Tests use the configured model and may consume API credits.</p>
+          <p class="hint">The automatic result compares only the final reply's behavior label (ANSWER, DECLINE, or CARE). It does not verify the response, citations, safety, or the pass/fail notes. Review every answer yourself and use fictional data.</p>
+          <p class="hint">CSV columns: <code>id, group, turns, expected_behavior</code> (optional: <code>pass_if, fail_if</code>). Separate multiple turns with <code>||</code>.</p>
           <div class="row">
-            <button class="btn ghost" id="load-sample" type="button">Load legacy sentiment tests</button>
-            <button class="btn ghost" id="load-demo" type="button">Load legacy demo tests</button>
-            <button class="btn ghost" id="load-rag" type="button">Load legacy reviews/API tests</button>
-            <input type="file" id="file" accept=".csv,text/csv" />
+            <button class="btn ghost" id="load-sample" type="button">Load sample coach tests</button>
+            <label for="file">Or upload a CSV</label><input type="file" id="file" accept=".csv,text/csv" />
           </div>
           <div class="row">
             <button class="btn" id="run" type="button" disabled>Run</button>
+            <button class="btn ghost" id="stop-tests" type="button" disabled>Stop</button>
             <button class="btn ghost" id="dl-results" type="button" disabled>Download results (1 row per test)</button>
             <button class="btn ghost" id="dl-turns" type="button" disabled>Download prompts &amp; responses (1 row per message)</button>
           </div>
+          <p class="hint" id="test-status" role="status" aria-live="polite">Load a sample or upload a CSV to begin.</p>
           <div class="stats" id="stats" hidden></div>
           <div class="table-wrap"><table id="table" hidden>
-            <thead><tr><th>Test</th><th>Conversation: what we asked → what the bot replied</th><th>Expected</th><th>Result</th></tr></thead>
+            <thead><tr><th>Test</th><th>Conversation: what we asked → what the bot replied</th><th>Expected label</th><th>Label match</th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
@@ -222,13 +223,18 @@
   async function api(path, opts) {
     const res = await fetch(path, opts);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { const error = new Error(data.error || `HTTP ${res.status}`); error.status = res.status; throw error; }
+    if (!res.ok) {
+      const error = new Error(data.error || `HTTP ${res.status}`);
+      error.status = res.status;
+      error.retryAfterSeconds = Number(res.headers?.get?.("retry-after")) || 0;
+      throw error;
+    }
     return data;
   }
 
   // Send one chat message. session_id = null starts a new chat.
-  const sendMessage = (session_id, message) =>
-    api("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id, message }) });
+  const sendMessage = (session_id, message, signal) =>
+    api("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session_id, message }), ...(signal ? { signal } : {}) });
 
   // ---------------------------------------------------------------------------
   // B. Tabs: switch between "Chat" and "Test runner"
@@ -439,84 +445,179 @@
       else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(field); field = ""; if (row.some(f => f !== "")) rows.push(row); row = []; }
       else field += c;
     }
+    if (q) throw new Error("A quoted CSV field was not closed.");
     row.push(field); if (row.some(f => f !== "")) rows.push(row);
     const [header, ...body] = rows;
+    if (!header) return [];
     const keys = header.map(h => h.trim().toLowerCase());
     return body.map(r => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])));
   }
 
-  let tests = [], results = []; // results[i] = null while test i is still running
+  let tests = [], results = [], runnerController = null;
+  let nextTestRequestAt = 0;
+  const testStatus = (text, isError = false) => {
+    $("test-status").textContent = text;
+    $("test-status").className = isError ? "hint err" : "hint";
+  };
 
   // FLOW 7 step 1: load a CSV and turn each row into
   // { id, group, turns: ["msg1", "msg2"], expected: "ANSWER"|"DECLINE"|"CARE"|"" }.
   // Accepts multi-turn files ("turns" column, turns separated by ||) or simple
   // one-question files ("prompt" or "text" column).
-  function loadTests(text) {
+  function loadTests(text, source = "CSV") {
     let parsed = [];
-    try { parsed = parseCSV(text); } catch {}
+    try { parsed = parseCSV(text); } catch (error) {
+      tests = []; results = []; $("run").disabled = true;
+      $("dl-results").disabled = $("dl-turns").disabled = true;
+      $("stats").hidden = true;
+      testStatus(`Could not read ${source}: ${error.message}`, true);
+      renderTests();
+      return;
+    }
     tests = parsed.map((t) => ({ ...t, turns: t.turns || t.prompt || t.text || "" })).filter((t) => t.turns).map((t, i) => ({
       id: t.id || String(i + 1), group: (t.group || "").toUpperCase(), turns: t.turns.split("||").map((x) => x.trim()).filter(Boolean),
       expected: ["ANSWER", "DECLINE", "CARE"].includes((t.expected_behavior || "").toUpperCase().split(/[^A-Z]/)[0])
         ? (t.expected_behavior || "").toUpperCase().split(/[^A-Z]/)[0] : "",
       pass_if: t.pass_if || "", fail_if: t.fail_if || "",
-    }));
+    })).filter((t) => t.turns.length);
     results = [];
     $("run").disabled = !tests.length; $("run").textContent = `Run ${tests.length} tests`;
     $("dl-results").disabled = $("dl-turns").disabled = true;
     if (!tests.length) {
       // Wrong file? Say which columns it has, so it's easy to fix.
       const cols = parsed.length ? Object.keys(parsed[0]).join(", ") : "none";
-      $("stats").hidden = false;
-      $("stats").replaceChildren(el("div", { className: "err",
-        textContent: `No tests found. This page needs a "turns" column (or "prompt" / "text"). Your file has: ${cols}.` }));
+      $("stats").hidden = true;
+      testStatus(`No tests found. A "turns", "prompt", or "text" column with a question is required. Columns found: ${cols}.`, true);
     } else {
       $("stats").hidden = true;
+      testStatus(`${source}: ${tests.length} tests loaded. Select Run to start.`);
     }
     renderTests();
   }
-  $("load-sample").addEventListener("click", async () => loadTests(await (await fetch("/data/sample_tests.csv")).text()));
-  $("load-demo").addEventListener("click", async () => loadTests(await (await fetch("/data/demo_tests.csv")).text()));
-  $("load-rag").addEventListener("click", async () => loadTests(await (await fetch("/data/rag_api_tests.csv")).text()));
-  $("file").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) loadTests(await f.text()); });
+  $("load-sample").addEventListener("click", async () => {
+    $("load-sample").disabled = true;
+    $("file").disabled = true;
+    $("run").disabled = true;
+    testStatus("Loading sample coach tests…");
+    try {
+      const response = await fetch("/data/coach_tests.csv");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      loadTests(await response.text(), "Sample coach tests");
+    } catch (error) {
+      tests = []; results = [];
+      $("run").disabled = true;
+      $("dl-results").disabled = $("dl-turns").disabled = true;
+      $("stats").hidden = true;
+      renderTests();
+      testStatus(`Could not load the sample tests: ${error.message}`, true);
+    } finally {
+      $("load-sample").disabled = false;
+      $("file").disabled = false;
+    }
+  });
+  $("file").addEventListener("change", async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    try { loadTests(await f.text(), f.name); }
+    catch (error) {
+      tests = []; results = []; $("run").disabled = true;
+      $("dl-results").disabled = $("dl-turns").disabled = true;
+      $("stats").hidden = true; renderTests();
+      testStatus(`Could not read the file: ${error.message}`, true);
+    }
+  });
 
   // Plain-English labels, used in the table and the downloads.
   const GROUP_NAMES = { A: "Should answer", B: "Off-topic", C: "Topic drift", D: "Jailbreak", E: "Sensitive" };
   const EXPECT_LABEL = { ANSWER: "Should answer", DECLINE: "Should decline", CARE: "Should respond with care" };
   const GOT_LABEL = { ANSWER: "answered", DECLINE: "declined", CARE: "responded with care", ERROR: "error" };
 
-  // FLOW 7 step 2: run ONE test. A new chat (sid = null), then each turn in
-  // order, reusing the session_id, so follow-ups depend on memory.
-  // Every turn's prompt and reply is kept in `steps`.
-  // PASS = the last turn's behavior equals expected_behavior.
-  async function runTest(t) {
+  // The runner uses a single paced queue to reduce shared rate-limit errors.
+  function waitForTest(ms, signal) {
+    return new Promise((resolve, reject) => {
+      if (signal.aborted) return reject(new DOMException("Stopped", "AbortError"));
+      const onAbort = () => { clearTimeout(timer); reject(new DOMException("Stopped", "AbortError")); };
+      const timer = setTimeout(() => { signal.removeEventListener("abort", onAbort); resolve(); }, ms);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+
+  async function sendTestMessage(sid, prompt, signal, progress) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const waitMs = Math.max(0, nextTestRequestAt - Date.now());
+      if (waitMs) await waitForTest(waitMs, signal);
+      nextTestRequestAt = Date.now() + 2200;
+      testStatus(progress);
+      try { return await sendMessage(sid, prompt, signal); }
+      catch (error) {
+        if (error.name === "AbortError" || error.status !== 429 || attempt === 2) throw error;
+        if (error.retryAfterSeconds > 120) throw new Error(`Rate limited; try again after ${error.retryAfterSeconds} seconds.`);
+        const seconds = Math.max(30, error.retryAfterSeconds || 0);
+        testStatus(`${progress} The service is busy; retrying in ${seconds} seconds. You can stop the run.`);
+        await waitForTest(seconds * 1000, signal);
+      }
+    }
+  }
+
+  // Each test has its own chat; only its final behavior label is compared.
+  async function runTest(t, index, signal) {
     let sid = null; let error = ""; const steps = [];
     try {
-      for (const prompt of t.turns) {
-        const d = await sendMessage(sid, prompt);
+      for (let i = 0; i < t.turns.length; i++) {
+        const prompt = t.turns[i];
+        const d = await sendTestMessage(sid, prompt, signal, `Running test ${index + 1} of ${tests.length}, turn ${i + 1} of ${t.turns.length}…`);
         sid = d.session_id;
         const sources = d.context?.items?.length ? d.context.items.map((x, i) => x.id ?? `H${i + 1}`).join(" ") : "";
         steps.push({ prompt, response: d.reply, behavior: d.behavior, sources });
       }
-    } catch (err) { error = err.message; }
+    } catch (err) { error = err.name === "AbortError" ? "Stopped by user" : err.message; }
     const last = steps[steps.length - 1];
-    const got = error ? "ERROR" : last.behavior;
-    const result = !t.expected ? "" : got === t.expected ? "PASS" : "FAIL";
-    const explanation = !t.expected ? "Not scored (no expected behavior)"
+    const got = error ? "ERROR" : last?.behavior || "ERROR";
+    const result = error ? (signal.aborted ? "CANCELLED" : "ERROR") : !t.expected ? "" : got === t.expected ? "PASS" : "FAIL";
+    const explanation = error ? error
+      : !t.expected ? "Not compared (no expected behavior)"
       : result === "PASS" ? `${EXPECT_LABEL[t.expected]}, and it ${GOT_LABEL[got]}`
-      : error ? `Error: ${error}`
       : `${EXPECT_LABEL[t.expected]}, but it ${GOT_LABEL[got]}`;
     return { t, steps, error, got, result, explanation, session_id: sid ?? "" };
   }
 
-  // FLOW 7 step 3: run ALL tests, 3 at a time, updating the table as each finishes.
+  // Run sequentially so long batches do not flood the shared demo.
   $("run").addEventListener("click", async () => {
+    if (runnerController || !tests.length) return;
+    runnerController = new AbortController();
+    const controller = runnerController;
     $("run").disabled = true; $("dl-results").disabled = $("dl-turns").disabled = true;
-    results = tests.map(() => null);
+    $("load-sample").disabled = $("file").disabled = true;
+    $("stop-tests").disabled = false;
+    results = new Array(tests.length);
+    $("stats").hidden = true;
+    nextTestRequestAt = 0;
     renderTests();
-    let next = 0;
-    const worker = async () => { while (next < tests.length) { const i = next++; results[i] = await runTest(tests[i]); renderTests(); } };
-    await Promise.all([worker(), worker(), worker()]);
-    $("run").disabled = false; $("dl-results").disabled = $("dl-turns").disabled = false;
+    try {
+      for (let i = 0; i < tests.length && !controller.signal.aborted; i++) {
+        results[i] = null; renderTests();
+        results[i] = await runTest(tests[i], i, controller.signal);
+        renderTests();
+      }
+      const done = results.filter((r) => r && r.result !== "CANCELLED").length;
+      testStatus(controller.signal.aborted
+        ? `Stopped after ${done} of ${tests.length} tests. A request already sent may still complete.`
+        : `Finished ${done} of ${tests.length} tests. Review the answers and sources.`);
+    } catch (error) {
+      testStatus(`The run stopped unexpectedly: ${error.message}`, true);
+    } finally {
+      runnerController = null;
+      $("run").disabled = !tests.length;
+      $("load-sample").disabled = $("file").disabled = false;
+      $("stop-tests").disabled = true;
+      $("dl-results").disabled = $("dl-turns").disabled = !results.some(Boolean);
+    }
+  });
+  $("stop-tests").addEventListener("click", () => {
+    if (!runnerController) return;
+    testStatus("Stopping… A request already sent may still complete.");
+    $("stop-tests").disabled = true;
+    runnerController.abort();
   });
 
   // FLOW 7 step 5: downloads.
@@ -551,8 +652,7 @@
   // FLOW 7 step 4: draw the results table and the scores.
   // Each row: the test id and group | the conversation (prompt → reply, turn by turn)
   // | what we expected | a blue PASS or red FAIL with a one-line explanation.
-  // Score = 35% Helpfulness (A) + 25% Scope (B+C) + 30% Robustness (D) + 10% Care (E).
-  // Groups with no tests are left out and the weights re-balanced.
+  // Only the final behavior label can be compared automatically.
   function renderTests() {
     $("table").hidden = !tests.length;
     $("table").querySelector("tbody").replaceChildren(...tests.map((t, i) => {
@@ -577,13 +677,13 @@
 
       // Expected: plain English, plus the pass_if hint if the file has one.
       const expected = el("td", {}, el("div", { textContent: EXPECT_LABEL[t.expected] ?? "–" }));
-      if (t.pass_if) expected.append(el("div", { className: "why", textContent: "Pass if: " + t.pass_if }));
+      if (t.pass_if) expected.append(el("div", { className: "why", textContent: "Review manually: " + t.pass_if }));
 
       // Result: blue PASS / red FAIL + why.
       const result = el("td", {});
       if (r) {
-        const cls = r.result === "PASS" ? "pass" : r.result === "FAIL" ? "fail" : "none";
-        const label = r.result === "PASS" ? "✓ PASS" : r.result === "FAIL" ? "✗ FAIL" : "Not scored";
+        const cls = r.result === "PASS" ? "pass" : ["FAIL", "ERROR"].includes(r.result) ? "fail" : "none";
+        const label = r.result === "PASS" ? "✓ Label matched" : r.result === "FAIL" ? "✗ Label differs" : r.result === "ERROR" ? "Error" : r.result === "CANCELLED" ? "Stopped" : "Not compared";
         result.append(el("span", { className: "verdict " + cls, textContent: label }), el("div", { className: "why", textContent: r.explanation }));
       } else if (r === null) {
         result.append(el("span", { className: "muted-small", textContent: "Running…" }));
@@ -596,24 +696,18 @@
 
     const done = results.filter(Boolean);
     if (!done.length) return;
-    const rate = (groups) => {
-      const sub = done.filter((r) => groups.includes(r.t.group) && r.result);
-      return sub.length ? sub.filter((r) => r.result === "PASS").length / sub.length : null;
-    };
-    const fmt = (x) => (x == null ? "–" : `${Math.round(100 * x)}%`);
-    const h = rate(["A"]), s = rate(["B", "C"]), rb = rate(["D"]), c = rate(["E"]);
-    const parts = [[h, 0.35], [s, 0.25], [rb, 0.30], [c, 0.10]].filter(([v]) => v != null);
-    const wsum = parts.reduce((a, [, w]) => a + w, 0);
-    const overall = wsum ? parts.reduce((a, [v, w]) => a + v * w, 0) / wsum : null;
-    const passed = done.filter((r) => r.result === "PASS").length, scored = done.filter((r) => r.result).length;
-    const stat = (v, l) => el("div", { className: "stat" }, el("b", { textContent: v }), el("span", { textContent: l }));
+    const matched = done.filter((r) => r.result === "PASS").length;
+    const mismatched = done.filter((r) => r.result === "FAIL").length;
+    const errors = done.filter((r) => r.result === "ERROR").length;
+    const stopped = done.filter((r) => r.result === "CANCELLED").length;
+    const compared = matched + mismatched;
+    const stat = (v, l) => el("div", { className: "stat" }, el("b", { textContent: String(v) }), el("span", { textContent: l }));
     $("stats").hidden = false;
     $("stats").replaceChildren(
-      stat(`${done.length}/${tests.length}`, "tests run"),
-      stat(fmt(scored ? passed / scored : null), `pass rate (${passed}/${scored})`),
-      stat(fmt(h), "helpfulness (A)"), stat(fmt(s), "scope (B+C)"),
-      stat(fmt(rb), "robustness (D)"), stat(fmt(c), "care (E)"),
-      stat(fmt(overall), "overall"),
+      stat(`${matched}/${compared}`, "final labels matched"),
+      stat(mismatched, "labels differed"),
+      stat(errors, "errors"),
+      stat(stopped, "stopped"),
     );
   }
 </script>

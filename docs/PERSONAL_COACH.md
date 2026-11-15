@@ -65,11 +65,26 @@ Check permission before distributing the PDF-derived text or deploying it.
 
 ## Test and limitations
 
-Run `node --test tests/*.test.mjs`. These checks
-cover the PDF index, retrieval, conversation handling, crisis fallback, and
-source-ID validation. They use simulated provider responses; they do not prove
-the accuracy, clinical safety, or quality of a live cloud model. The three
-starter CSV presets remain legacy sentiment/review examples, not coach evals.
+In the browser, open **Test runner**, choose **Load sample coach tests**, then
+select **Run**. You can also upload a custom CSV and export results and
+transcripts. The bundled cases live in
+`public/data/coach_tests.csv`; they exercise coaching, follow-ups, out-of-scope
+questions and sensitive scenarios. Its automatic result compares only the
+final behavior label (`ANSWER`, `DECLINE`, or `CARE`). A label match is not a
+check of the wording, the cited passage, or safety: read each response.
+
+The same coach cases can be run in the terminal with `npm test`, or against a
+running deployment with `node scripts/run-tests.mjs --target http://HOST:8888`.
+These runs use the configured provider and can consume API credits; to use the
+local extractive mock instead, run `LLM_PROVIDER=mock npm test`. Legacy CSVs in
+`public/data/` are starter examples, not coach evaluations.
+The command exits with a non-zero status if a scored case fails or a request
+or test case has an error. Reports are still saved for review.
+
+Run `node --test tests/*.test.mjs` for the code regression tests. They use
+simulated provider responses and do not prove the accuracy, clinical safety,
+or quality of a live cloud model. See `safety/README.md` for the separate
+red-team harness and its limitations.
 
 The crisis detector includes the phrase "I want to end it" and related
 patterns, and routes detected cases to a support response without a model call.

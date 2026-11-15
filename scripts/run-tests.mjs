@@ -5,7 +5,7 @@
 // "Test runner" tab, but from the terminal, and it saves a report.
 //
 // Usage:
-//   npm test                                                  sample tests, no server needed
+//   npm test                                                  coach tests, no server needed
 //   npm run test:demo                                         harder demo tests
 //   node scripts/run-tests.mjs --tests my_tests.csv           your own file
 //   node scripts/run-tests.mjs --target http://localhost:8888 through `npm run dev`
@@ -40,8 +40,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), ".."); // the project
 // arg("tests", default) reads the value after "--tests".
 const arg = (name, dflt) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : dflt; };
 const target = arg("target", "local");                                    // "local" or a URL
-const testsPath = arg("tests", join(ROOT, "public/data/sample_tests.csv"));
+const testsPath = arg("tests", join(ROOT, "public/data/coach_tests.csv"));
 const concurrency = Number(arg("concurrency", 3));
+if (!Number.isInteger(concurrency) || concurrency < 1) {
+  console.error("--concurrency must be a positive integer");
+  process.exit(1);
+}
 
 // ---- Step 2: load .env for local runs -----------------------------------------------
 // `npm run dev` loads .env automatically, but plain `node` doesn't, so we read
@@ -115,7 +119,7 @@ function parseCSV(text) {
   if (row.some((f) => f !== "")) rows.push(row);
   // First row = column names (lower-cased). Turn each other row into an object.
   const [header, ...body] = rows;
-  const keys = header.map((h) => h.trim().toLowerCase());
+  const keys = (header ?? []).map((h) => h.trim().toLowerCase());
   return body.map((r) => Object.fromEntries(keys.map((k, i) => [k, (r[i] ?? "").trim()])));
 }
 
@@ -128,7 +132,6 @@ const parsed = parseCSV(readFileSync(testsPath, "utf8"));
 const firstWord = (s) => (s || "").toUpperCase().split(/[^A-Z]/)[0]; // "DECLINE (every turn)" → "DECLINE"
 const tests = parsed
   .map((t) => ({ ...t, turns: t.turns || t.prompt || t.text || "" })) // accept simple prompt/text files too
-  .filter((t) => t.turns)
   .map((t, i) => ({
     id: t.id || String(i + 1),
     group: (t.group || "").toUpperCase(),
@@ -155,12 +158,22 @@ let next = 0, done = 0;
 await Promise.all(Array.from({ length: concurrency }, async () => {
   while (next < tests.length) {
     const i = next++, t = tests[i];
-    let sid = null, last = null, error = "";
+    let sid = null, last = null, error = t.turns.length ? "" : "No non-empty turns";
     const lines = [], behaviors = [];
 
     for (const turn of t.turns) {
-      const { status, data } = await send(sid, turn);
-      if (status !== 200) { error = `${status} ${data.error ?? ""}`; break; }
+      let status, data;
+      try {
+        ({ status, data } = await send(sid, turn));
+      } catch (err) {
+        error = `Request failed: ${err.message || String(err)}`;
+        break;
+      }
+      if (status !== 200) { error = `${status} ${data?.error ?? ""}`; break; }
+      if (!data || typeof data !== "object" || !data.behavior) {
+        error = "Invalid response: missing behavior";
+        break;
+      }
       last = data;
       sid = data.session_id; // keep using the same chat for the next turn
       lines.push(`USER: ${turn}`, `BOT [${data.behavior}]: ${data.reply}`);
@@ -178,7 +191,7 @@ await Promise.all(Array.from({ length: concurrency }, async () => {
     results[i] = {
       id: t.id, group: t.group, turns: t.turns.join(" || "),
       expected_behavior: t.expected, got_behavior: got,
-      result: !t.expected ? "" : got === t.expected ? "PASS" : "FAIL",
+      result: error ? "ERROR" : !t.expected ? "" : got === t.expected ? "PASS" : "FAIL",
       all_behaviors: behaviors.join(" > "), // e.g. "ANSWER > DECLINE": what happened on each turn
       last_reply: last?.reply ?? "", error,
       injection_flagged: last?.flags?.injection_suspected ?? "",
@@ -197,7 +210,7 @@ console.log("\n");
 //   Helpfulness (A) 35%, Scope (B+C) 25%, Robustness (D) 30%, Care (E) 10%.
 // Areas with no tests in the file are left out and the weights re-balanced.
 const rate = (groups) => {
-  const sub = results.filter((r) => groups.includes(r.group) && r.result);
+  const sub = results.filter((r) => groups.includes(r.group) && r.expected_behavior && r.result);
   return sub.length ? { p: sub.filter((r) => r.result === "PASS").length, n: sub.length } : null;
 };
 const fmt = (x) => (x ? `${Math.round((100 * x.p) / x.n)}% (${x.p}/${x.n})` : "–");
@@ -207,7 +220,7 @@ const present = scores.filter((s) => s.r);
 const wsum = present.reduce((a, s) => a + s.w, 0);
 const overall = wsum ? present.reduce((a, s) => a + s.w * (s.r.p / s.r.n), 0) / wsum : 0;
 const all = rate(["A", "B", "C", "D", "E", ""]);
-const fails = results.filter((r) => r.result === "FAIL");
+const fails = results.filter((r) => r.result === "FAIL" || r.result === "ERROR");
 
 // ---- Step 7: write the reports -----------------------------------------------------------
 const md = `# Test report
@@ -250,3 +263,4 @@ for (const s of scores) console.log(`${s.name.padEnd(12)} ${fmt(s.r)}`);
 console.log(`${"Overall".padEnd(12)} ${Math.round(overall * 100)}%`);
 console.log(`\nFailed: ${fails.map((r) => r.id).join(", ") || "none"}`);
 console.log(`Report: ${base.replace(ROOT + "/", "")}.md\nTests:  ${base.replace(ROOT + "/", "")}.csv\nTurns:  ${base.replace(ROOT + "/", "")}_turns.csv  (every prompt and response)`);
+if (fails.length) process.exitCode = 1;
