@@ -34,8 +34,10 @@ that the acknowledgment used no specific source.
   a successful language-model call. Resolved queries are checked again before
   retrieval, and medication context survives intervening acknowledgments.
 - The planner has a validated schema. Malformed output or a provider failure
-  produces a short clarification; raw model output is never displayed and there
+  gets one bounded repair attempt, then a short clarification; raw model output is never displayed and there
   is no fallback search for literal acknowledgment words.
+- A valid acknowledgment or closure intent with an empty reply uses a short
+  server-owned response, so choosing silence cannot trigger another question.
 - Source-free replies are limited to 45 words/350 characters, with checks for
   obvious source claims and advice. This is not proof of semantic correctness.
 - Acknowledgments use one model call; a sourced substantive response normally

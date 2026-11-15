@@ -11,6 +11,10 @@ const followup = { intent: 'continue', query: 'How can I apply the earlier advic
 
 test('planner keeps social replies source-free and substantive queries separate', () => {
   assert.equal(parseConversationPlan(JSON.stringify(acknowledgment)).valid, true);
+  const silentClose = parseConversationPlan(JSON.stringify({ ...acknowledgment, intent: 'close', reply: '' }));
+  assert.equal(silentClose.valid, true);
+  assert.equal(silentClose.reply, 'Of course. Take care.');
+  assert.equal(parseConversationPlan(JSON.stringify({ ...acknowledgment, reply: '' })).reply, 'Understood.');
   assert.deepEqual(parseConversationPlan(JSON.stringify(followup)), { ...followup, usage: { input_tokens: 0, output_tokens: 0 }, valid: true });
   for (const intent of ['care', 'medical', 'decline']) {
     assert.equal(parseConversationPlan(JSON.stringify({ ...acknowledgment, intent, reply: '' })).valid, true);
@@ -158,4 +162,30 @@ test('private provider accepts a custom task schema while keeping data on stdin'
   assert.equal(parseConversationPlan(result.raw).intent, 'acknowledge');
   assert.match(input, /^CONVERSATION_PLANNER/);
   assert.match(input, /Earlier explanation/);
+});
+
+
+test('one bounded repair can recover a malformed social plan without exposing rejected content', async () => {
+  const priorFetch = globalThis.fetch, priorProvider = process.env.LLM_PROVIDER;
+  process.env.LLM_PROVIDER = 'openai';
+  const calls = [];
+  globalThis.fetch = async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    return Response.json({ choices: [{ message: { content: calls.length === 1 ? 'rejected-raw-content' : JSON.stringify({ intent: 'close', query: '', reply: 'Of course. Take care.', reuse_previous: false }) } }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
+  };
+  try {
+    const plan = await planConversationTurn('Thanks, enough for now.', []);
+    assert.equal(plan.valid, true);
+    assert.equal(plan.intent, 'close');
+    assert.equal(calls.length, 2);
+    assert.deepEqual(plan.usage, { input_tokens: 20, output_tokens: 10 });
+    assert.doesNotMatch(JSON.stringify(calls[1]), /rejected-raw-content/);
+    globalThis.fetch = async () => { calls.push({}); return Response.json({ choices: [{ message: { content: 'invalid' } }] }); };
+    const failed = await planConversationTurn('okay', []);
+    assert.equal(failed.valid, false);
+    assert.equal(calls.length, 4, 'no unbounded retries');
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorProvider === undefined) delete process.env.LLM_PROVIDER; else process.env.LLM_PROVIDER = priorProvider;
+  }
 });

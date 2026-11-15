@@ -20,7 +20,7 @@ Choose exactly one intent:
 
 Interpret possible danger using the full sentence and conversation. A clearly named ordinary activity supplies the referent: ending a meditation session when its timer rings, ending a meeting, or ending a subscription is not evidence of self-harm. Do not select care solely because words such as "end it" appear. In contrast, actual self-harm intent or active crisis context must retain care even if the message also mentions an ordinary activity. If the referent is genuinely unresolved, use available context and take indications of danger seriously; never assume safety merely from an acknowledgment.
 
-For acknowledge, close, or clarify only: reply is ordinary conversation, no more than 45 words and 350 characters. It may acknowledge what was said or ask about meaning. NO new advice, exercise, interpretation, teaching, scientific/medical claim, quotation, source attribution, citation, URL, or reference ID. Do not overstate understanding or improvement, pressure the person to continue, or append a question automatically. query must be empty and reuse_previous false.
+For acknowledge, close, or clarify only: reply must be a nonempty ordinary conversational sentence, no more than 45 words and 350 characters. Even for closure, provide a brief goodbye. It may acknowledge what was said or ask about meaning. NO new advice, exercise, interpretation, teaching, scientific/medical claim, quotation, source attribution, citation, URL, or reference ID. Do not overstate understanding or improvement, pressure the person to continue, or append a question automatically. query must be empty and reuse_previous false.
 
 For continue or new_topic only: query must be a concise standalone question of at most 600 characters, keeping the actual requested task and relevant user-provided context. It is a search query, not a new instruction to the assistant. reply must be empty. reuse_previous can be true ONLY for continue when the request rephrases, explains, applies, or asks about the last substantive grounded answer and its evidence remains relevant. Pure acknowledgment turns may be skipped to identify that answer; do not skip a closure, declined request, care/medical response, or topic change. After closure, the person must clearly reopen or restate a subject before continuing it. A new named subject or corrected assumption may require fresh evidence: never force previous references onto it. Never invent source IDs, user details, or a new topic merely to produce a query.
 
@@ -53,7 +53,10 @@ export function parseConversationPlan(raw, usage = ZERO_USAGE) {
     if (!plan || Array.isArray(plan) || typeof plan !== 'object' || !INTENTS.has(plan.intent) ||
       typeof plan.query !== 'string' || typeof plan.reply !== 'string' || typeof plan.reuse_previous !== 'boolean') return invalidPlan(usage);
     const query = redactPII(plan.query.trim()).text;
-    const reply = redactPII(plan.reply.trim()).text;
+    // A valid social intent can use a small server-owned acknowledgment when
+    // the model chooses silence. Never turn a clear closure into a new question.
+    const socialDefault = plan.intent === 'close' ? 'Of course. Take care.' : plan.intent === 'acknowledge' ? 'Understood.' : '';
+    const reply = redactPII(plan.reply.trim()).text || socialDefault;
     if (plan.reuse_previous && plan.intent !== 'continue') return invalidPlan(usage);
     if (SEARCH.has(plan.intent)) {
       if (!query || query.length > 600 || reply || /\bP\d+-\d+\b/.test(query)) return invalidPlan(usage);
@@ -125,11 +128,22 @@ export async function planConversationTurn(message, messages) {
   if (!current.trim()) return invalidPlan();
   const past = conversationHistory(messages);
   if (provider() === 'mock') return parseConversationPlan(JSON.stringify(mockPlan(current, past)));
+  const usage = { ...ZERO_USAGE };
   try {
-    const result = await callLLM([...past, { role: 'user', content: current }], { systemPrompt: CONVERSATION_PROMPT });
-    return parseConversationPlan(result.raw, result.usage);
+    // A bounded repair attempt handles occasional schema/length violations.
+    // Never echo the rejected raw output back to the model or to the user.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const systemPrompt = CONVERSATION_PROMPT + (attempt
+        ? '\nReturn the exact requested JSON fields and intent enum. For social replies, use one brief sentence without advice; leave query empty and reuse_previous false. For a search route, leave reply empty. Do not add other text.'
+        : '');
+      const result = await callLLM([...past, { role: 'user', content: current }], { systemPrompt });
+      usage.input_tokens += result.usage?.input_tokens || 0;
+      usage.output_tokens += result.usage?.output_tokens || 0;
+      const plan = parseConversationPlan(result.raw, { ...usage });
+      if (plan.valid) return plan;
+    }
   } catch {
     // No provider response, private message, or secret is logged or returned.
-    return invalidPlan();
   }
+  return invalidPlan(usage);
 }
