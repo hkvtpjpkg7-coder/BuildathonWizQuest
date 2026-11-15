@@ -471,6 +471,58 @@ h1{font-size:clamp(19px,5vw,26px);white-space:nowrap;overflow:hidden;text-overfl
 .rew>.card.rw{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
 .rw h3{margin:2px 0 4px}.shelf{margin-bottom:6px}
 @media(max-height:760px){.rew .ladder,.rew .scale{display:none}.shelf li{font-size:12px}}
+/* seventh pass: pictures take the spare height, text panels hug their content, nothing is left blank */
+.wrap{justify-content:safe center}
+.hud .meter{height:auto;background:none;overflow:visible;border-radius:0;margin:0}
+/* intro cards and results: the picture grows into the space the words leave (engine: fitSvg) */
+.sceneBox{flex:1 1 0;min-height:56px}
+.sceneBox>.scene{position:absolute;inset:0;width:100%;height:100%!important}
+.sceneBox~.body{flex:0 1 auto}
+.res>.scene{flex:1 1 0;min-height:56px;height:auto!important;width:100%}
+.res>.body{flex:0 1 auto}
+.res .lines{flex:none;overflow:visible}
+/* steps: the question card hugs its options; the picture above it takes the rest */
+#st>.card:last-child:not(.stage){flex:0 1 auto}
+#st>.fill{flex:1 1 0;min-height:0;position:relative;border-radius:22px;overflow:hidden;border:1px solid var(--line);background:#ffe3bd}
+#st>.fill.tiny{visibility:hidden}
+.fill>.scene{position:absolute;inset:0;width:100%;height:100%}
+#vis:not(:empty){flex:1 1 0;min-height:110px;display:flex;flex-direction:column}
+#vis>.window,#vis>.skybox{flex:1;min-height:0;margin-bottom:0}
+#vis>.window>svg,#vis>.skybox>svg{height:100%!important;width:100%}
+#vis>.card{flex:1;min-height:0;display:flex;flex-direction:column}
+#vis>.card>.scene{flex:1 1 0;min-height:48px;height:auto!important;width:100%}
+#vis>.card>.hap{flex:none}
+#st>.prog+#vis:not(:empty){margin-top:0}
+/* sort: a bigger Seeker on the swipe card */
+.swc .who{height:min(240px,52%)}
+.swc q{font-size:clamp(17px,3vh,24px)}
+.swc .wl{font-size:clamp(14px,1.9vh,16px)}
+/* other screens: the card is only as tall as what is on it */
+.wrap>.card.screen.avs{flex:0 1 auto}
+.rew{justify-content:safe center}
+.rew>.card.rw{flex:0 1 auto}
+/* flip tiles: text centred on both faces; an open tile grows to fit its words */
+.flip .f .fl{display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.flip .f .fl small{margin-top:2px}
+.flip .b{display:flex!important;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.flip.open .in{position:relative;display:grid;min-height:inherit}
+.flip.open .in>.f,.flip.open .in>.b{position:relative;inset:auto;grid-area:1/1;min-height:0}
+@media(max-width:440px){.flip .f{justify-content:center}
+ /* short options and the match words sit two to a row */
+ .optgrid,.memgrid{grid-template-columns:1fr 1fr}.memgrid .opt,.optgrid .opt{font-size:14px;line-height:1.25}
+ .match>div:first-child{grid-template-columns:1fr 1fr}
+ /* dream clouds stay inside the room */
+ .dream{width:min(45%,190px);padding:10px;font-size:14px;line-height:1.25}}
+/* a closed tile's hidden back never spills out of the tile */
+.flip:not(.open) .b{overflow:hidden!important}
+/* short screens: last few that ran a little over */
+@media(max-height:760px){
+ .shelf{gap:4px}.shelf li{padding:0 7px 0 2px}.shelf li svg{width:16px;height:16px}.rw h3{font-size:17px;margin:0 0 2px}
+ .res .badge{padding:6px 10px;margin:4px 0;gap:10px}.res .badge svg{width:42px;height:42px}.res .big{font-size:34px}
+ .scores{gap:4px;margin:2px 0 4px}.scores span{font-size:12px;padding:1px 8px}.res .lines{font-size:14px}
+ #rm .room{min-height:72px}.meters>div{padding:3px 8px}
+ .mw,.mm{min-height:38px;padding:4px 8px}
+ .flip .b{font-size:13px!important;line-height:1.3!important;padding:6px!important}.flips{gap:6px!important}}
 </style>
 </head>
 <body>

@@ -159,6 +159,20 @@ function scene(name,o){o=o||{};const h=o.h||220;
  return o.svg||'';
 }
 
+/* ---------- pictures fill the space they are given ----------
+   the art stays on the ground and the sky grows upward, so nothing is cropped or stretched */
+const SCENES=['lake','lakeSide','meadow','night','mist','throne','plain'];
+const lessonScene=l=>{if(l.resultScene&&SCENES.includes(l.resultScene))return l.resultScene;const c=l.cards.slice().reverse().find(c=>SCENES.includes(c.scene));return c?c.scene:'lake'};
+const skyRO=new ResizeObserver(es=>es.forEach(e=>{if(!e.target.isConnected){skyRO.unobserve(e.target);return}sizeSky(e.target)}));
+function sizeSky(svg){const r=svg.getBoundingClientRect(),box=svg.parentElement;
+ if(box&&box.classList.contains('fill'))box.classList.toggle('tiny',r.height<64);
+ if(!r.width||!r.height)return;const B=+svg.dataset.base,hh=Math.max(B,Math.round(320*r.height/r.width));
+ svg.setAttribute('viewBox','0 '+(B-hh)+' 320 '+hh)}
+function fitSvg(svg){if(!svg)return;
+ if(!svg.dataset.base)svg.dataset.base=svg.viewBox.baseVal.height;
+ if(!svg.querySelector('.skyx')){const m=svg.innerHTML.match(/<rect\b[^>]*?fill="(#[0-9a-fA-F]{3,6})"/);svg.insertAdjacentHTML('afterbegin','<rect class="skyx" x="-40" y="-3000" width="400" height="3001" fill="'+(m?m[1]:'#ffe3bd')+'"/>')}
+ skyRO.observe(svg);sizeSky(svg)}
+
 /* ---------- header and home ---------- */
 function header(t,s){$('hTitle').textContent=t;$('hSub').textContent=s;$('homeB').hidden=!L;document.title=t}
 /* ---------- levels: Prana grows the Seeker's lotus, from beginner (Seed) to expert (Full Lotus) ---------- */
@@ -278,7 +292,7 @@ function yogi(tagText,right){return '<div class="yogiRow"><span class="yogi"><sv
 function renderCard(){
  const c=L.cards[ci];
  app().innerHTML='<section class="card"><div class="sceneBox"><svg class="scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Lesson picture">'+scene(c.scene||'lake',{h:180,svg:c.svg})+'</svg>'+petalUI()+'</div><div class="body" aria-live="polite">'+yogi('[[sutra|'+sutTag(L)+']]','Card '+(ci+1)+' of '+L.cards.length)+'<h2>'+tx(c.title)+'</h2><div id="cb"></div><div class="row"><button class="ghost" id="bk">'+(ci?'Back':'All lessons')+'</button><button class="next" id="nx" disabled>Next</button></div></div></section>';
- paintPetals();
+ paintPetals();fitSvg(app().querySelector('.sceneBox .scene'));
  $('bk').onclick=()=>{if(ci){ci--;renderCard()}else location.hash=''};
  $('nx').textContent=ci===L.cards.length-1?(L.beginLabel||'Begin'):'Next';$('nx').disabled=!doneC[ci];
  $('nx').onclick=()=>{if(ci<L.cards.length-1){ci++;renderCard();window.scrollTo({top:0,behavior:'smooth'})}else startSteps()};
@@ -299,7 +313,7 @@ const CARDS={
   el.innerHTML='<p class="lead">'+tx(c.lead||'Tap the one closest to you.')+'</p><div class="choices">'+c.options.map((o,i)=>'<button class="choice" data-i="'+i+'">'+icon(o.icon)+tx(o.t)+'</button>').join('')+'</div><div id="cr"></div>';
   const rv=(b,again)=>{el.querySelectorAll('.choice').forEach(x=>x.disabled=true);if(b)b.classList.add('picked');const i=b?+b.dataset.i:0,o=c.options[i];
    $('cr').innerHTML='<div class="reveal" style="margin-top:16px">'+quoteBlock(c.quote,c.source)+(o.after||c.after?'<p class="after">'+tx(o.after||c.after)+'</p>':'')+(c.gaze&&!again?'<button id="gz">'+tx(c.gaze.button)+'</button>':'')+'</div>';
-   if(c.gaze&&!again){$('gz').onclick=()=>{$('gz').disabled=true;$('gz').textContent='Gazing… just look';const sc=document.querySelector('.scene');sc.innerHTML=scene('lakeSide',{h:180})+'<circle cx="160" cy="76" r="52" fill="#fff" opacity=".85"/><circle id="gr" cx="160" cy="76" r="58" fill="none" stroke="#e889a5" stroke-width="6" stroke-linecap="round" stroke-dasharray="364.4" stroke-dashoffset="364.4" transform="rotate(-90 160 76)"/>'+U('lotus',118,46,84,62);window.scrollTo({top:0,behavior:'smooth'});
+   if(c.gaze&&!again){$('gz').onclick=()=>{$('gz').disabled=true;$('gz').textContent='Gazing… just look';const sc=document.querySelector('.scene');sc.innerHTML=scene('lakeSide',{h:180})+'<circle cx="160" cy="76" r="52" fill="#fff" opacity=".85"/><circle id="gr" cx="160" cy="76" r="58" fill="none" stroke="#e889a5" stroke-width="6" stroke-linecap="round" stroke-dasharray="364.4" stroke-dashoffset="364.4" transform="rotate(-90 160 76)"/>'+U('lotus',118,46,84,62);fitSvg(sc);window.scrollTo({top:0,behavior:'smooth'});
      document.getElementById('gr').animate([{strokeDashoffset:364.4},{strokeDashoffset:0}],{duration:(c.gaze.seconds||5)*1000,fill:'forwards'}).onfinish=()=>{$('gz').remove();const a=document.createElement('p');a.className='after reveal';a.innerHTML=tx(c.gaze.done);$('cr').firstChild.appendChild(a);fin()}}}
    else fin()};
   if(doneC[ci]){rv(null,true);return}
@@ -307,7 +321,7 @@ const CARDS={
  },
  /* flip every tile, then a payoff line */
  flips(c,el,fin){
-  el.innerHTML='<p class="lead">'+tx(c.lead||'Tap each one to open it.')+'</p><div class="flips" style="--n:'+Math.min(3,c.tiles.length)+'">'+c.tiles.map((t,i)=>'<div class="flip'+(doneC[ci]?' open':'')+'" role="button" tabindex="0" data-i="'+i+'" aria-label="'+esc(t.f)+'"><div class="in"><div class="f">'+icon(t.icon)+tx(t.f)+'<small>'+tx(t.sub||'Tap to open')+'</small></div><div class="b">'+(t.h?'<b>'+tx(t.h)+'</b>':'')+tx(t.b)+'</div></div></div>').join('')+'</div><div id="cr"></div>';
+  el.innerHTML='<p class="lead">'+tx(c.lead||'Tap each one to open it.')+'</p><div class="flips" style="--n:'+Math.min(3,c.tiles.length)+'">'+c.tiles.map((t,i)=>'<div class="flip'+(doneC[ci]?' open':'')+'" role="button" tabindex="0" data-i="'+i+'" aria-label="'+esc(t.f)+'"><div class="in"><div class="f">'+icon(t.icon)+'<span class="fl">'+tx(t.f)+'<small>'+tx(t.sub||'Tap to open')+'</small></span></div><div class="b">'+(t.h?'<b>'+tx(t.h)+'</b>':'')+tx(t.b)+'</div></div></div>').join('')+'</div><div id="cr"></div>';
   const pay=()=>{$('cr').innerHTML='<div class="payoff reveal"><p class="quote" style="font-size:22px;margin:0">'+(c.payoff.plain?tx(c.payoff.q):'“'+tx(c.payoff.q)+'”')+'</p>'+(c.payoff.note?'<p class="small" style="margin-top:6px">'+tx(c.payoff.note)+'</p>':'')+'</div>'};
   if(doneC[ci]){pay();fin();return}
   const open=new Set();
@@ -361,6 +375,10 @@ function runStep(){
  app().innerHTML='<section class="card stephead"><div class="body">'+yogi(s.tag||'[[sutra|'+sutTag(L)+']]',s.label||((L.stepWord||'Step')+' '+(si+1)+' of '+L.steps.length))+'<h2 style="margin-bottom:4px">'+tx(s.title)+'</h2>'+(s.lead?'<p class="lead" style="margin:0">'+tx(s.lead)+'</p>':'')+'</div></section>'+hud+'<div id="st"></div><div id="ui"></div>';
  const api={st:$('st'),ui:$('ui'),done:stepDone,addPts};
  STEPS[s.type](s,api);
+ const st=api.st,card=[...st.children].find(e=>e.classList.contains('card'));
+ if(card&&!st.querySelector('.room,.stage,.window,.skybox,#vis>.card,.fill')){
+  card.insertAdjacentHTML('beforebegin','<div class="fill" aria-hidden="true"><svg class="scene" viewBox="0 0 320 180" preserveAspectRatio="xMidYMid slice">'+scene(lessonScene(L),{h:180})+'</svg></div>');
+  fitSvg(st.querySelector('.fill svg'))}
 }
 function room(api,svg,cls){api.st.innerHTML='<div class="room '+(cls||'')+'"><svg viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+svg+'</svg><div class="layer"></div><div class="coach"></div></div>';const r=api.st.firstChild;return {el:r,layer:r.querySelector('.layer'),bg:r.querySelector('svg'),coach:(t,k)=>{const c=r.querySelector('.coach');c.className='coach'+(k?' '+k:'');c.innerHTML=tx(t||'')}}}
 function feedback(ok,title,lines,btn,cb){return '<div class="fbk'+(ok?'':' no')+'" aria-live="polite"><div class="v">'+tx(title)+'</div><ul class="lines">'+lis(lines)+'</ul></div>'}
@@ -396,6 +414,7 @@ const STEPS={
    else if(s.visual==='cloud')$('vis').innerHTML='<div class="skybox"><svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+scene('lake',{h:200})+'</svg><div class="cloud'+(it.fear?' fear':'')+'" id="cl"><small>'+tx(it.who||'')+'</small>'+tx(it.text).split(' ').map(w=>'<span class="w">'+w+' </span>').join('')+'</div></div>';
    else if(s.visual==='scene')$('vis').innerHTML='<div class="card" style="overflow:hidden"><svg class="scene" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="320" height="160" fill="#ffe3bd"/>'+U('sun',262,6,50,50)+'<rect x="0" y="140" width="320" height="20" fill="#8cc2b2"/>'+(it.svg||'')+'</svg><div class="hap"><small>'+tx(s.hapLabel||'What happened')+'</small><p>'+tx(it.text)+'</p></div></div>';
    else $('vis').innerHTML='';
+   fitSvg($('vis').querySelector('svg'));
    const opts=it.options||s.options, O=s.keepOrder?opts:shuffle(opts);
    const grid=O.every(o=>o.icon)||(O.length>=4&&O.every(o=>String(o.t).replace(/\[\[[^|\]]*\|?|\]\]/g,'').length<=26));
    $('cq').innerHTML=(s.visual==='card'&&it.text?'<p class="q">'+tx(it.text)+'</p>':'')+(it.clue?'<p class="clue">Clue</p><p class="q" style="font-size:18px">'+tx(it.clue)+'</p>':'')+(it.q||s.q?'<p class="q" style="font-size:18px;font-weight:700">'+tx(it.q||s.q)+'</p>':'')+
@@ -602,11 +621,12 @@ const STEPS={
 function result(){
  leave();const n=results.length,avg=n?results.reduce((a,r)=>a+r.score,0)/L.steps.length:0;const b=L.badge,won=!mode.lost&&avg>=(b.need==null?.8:b.need);
  const done=store.get('done',{});const prev=done[L.id]||{};done[L.id]={badge:won?b.name:(prev.badge||''),best:Math.max(prev.best||0,Math.round(avg*100))};store.set('done',done);
- const sc=L.resultScene?scene(L.resultScene,{h:220,clear:!mode.lost,n:5,colors:L.mode&&L.mode.collect?L.mode.collect.gems.map(g=>g.c):[]}):'';
+ const sc=scene(L.resultScene||lessonScene(L),{h:220,clear:!mode.lost,n:5,colors:L.mode&&L.mode.collect?L.mode.collect.gems.map(g=>g.c):[]});
  app().innerHTML='<section class="card res">'+(sc?'<svg class="scene" viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">'+sc+'</svg>':'')+'<div class="body">'+yogi('[[sutra|'+sutTag(L)+']]',mode.lost?(L.lostLabel||'Try again'):(L.doneLabel||'Lesson complete'))+
  '<div class="row" style="margin-top:0;align-items:flex-end"><div><div class="big">'+Math.round(avg*100)+'%</div><div style="color:var(--soft)">'+tx(L.scoreLabel||'lesson score')+'</div></div><button class="ghost" id="ag">Play again</button></div>'+
  '<div class="badge">'+ICON.lotus.replace('<svg','<svg width="64" height="64"')+'<div><b>'+(won?'Badge earned: ':'Almost there: ')+tx(b.name)+'</b><br><span style="color:var(--soft);font-size:16px">'+tx(won?b.text:b.miss)+'</span></div></div>'+
  '<div class="scores">'+results.map(r=>'<span><b>'+Math.round(r.score*100)+'%</b> '+tx(r.s.title)+'</span>').join('')+'</div><ul class="lines">'+lis(L.endLines)+'</ul><div class="row"><span></span><button id="hm">All lessons</button></div></div></section>';
+ fitSvg(app().querySelector('.res>.scene'));
  $('ag').onclick=()=>startLesson(L.id);$('hm').onclick=()=>{location.hash=''};window.scrollTo({top:0,behavior:'smooth'});
 }
 

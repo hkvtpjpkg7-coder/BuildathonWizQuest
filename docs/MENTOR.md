@@ -26,9 +26,12 @@ earlier sample "find a mentor" prototype.
   one to six short games (choose, sort, order, match, hold, timed and others),
   then a badge and Gurudev's closing line. Prana points add up across lessons.
 - **Fixed-size screens.** Every screen fits the window with no vertical
-  scrolling, on phones and desktop: pictures and game areas shrink to the space
-  left, and feedback slides up in a panel. On phones the WizQuest chat list and
-  download buttons are hidden while the Mentor tab is open.
+  scrolling, on phones and desktop, and leaves no blank band: text panels are
+  as tall as their content, and pictures and game areas take the space left
+  (the sky grows upward, so pictures are never cropped). Steps that are only
+  a question show the lesson's scene above it. Feedback slides up in a panel.
+  On phones the WizQuest chat list and download buttons are hidden while the
+  Mentor tab is open.
 
 Built so far: lessons 1–7, the Module 1 boss (the Lake Guardian), and several
 lessons in Modules 2, 3, 4, 6 and 7 (Modules 5 and 8 are not started).
@@ -72,20 +75,13 @@ server, and nothing from the Personal Coach conversation is used.
 - Lessons for the rest of Chapter 1, and Chapters 2–11.
 - Saving progress to the signed-in account instead of the browser only.
 - Accessibility review of the games (keyboard and screen reader) with real users.
-- Known layout issues (headless check in the Mentor tab through the private
-  preview, at 360x740, 390x844 and 1280x800; fix them in the lesson app, then
-  copy it here):
-  - All sizes: in The Lake Guardian's six challenges and Catch the Now step 1
-    the "Mist on the lake" meter label is cut off, because the Prana level meter's `.meter` rule (12px high, overflow
-    hidden) also matches the challenge meter.
-  - 390 and 360 wide: in "Meet Your Sleep" step 2 the dream clouds run past
-    the right edge.
-  - 360x740 only (the lessons frame is 636px high there): a few panels scroll
-    or push buttons below the fold: the rewards page ("Back to the path"),
-    the first intro card of Firm Roots, Five Gems and One Sense, Still Mind,
-    Guardian card 2 and challenge 4, Still the Lake step 3, Five Gems step 3,
-    Clear the Glass step 1, Firm Roots step 1, and the result lines of Five
-    Gems and the Guardian.
+- Re-run the headless layout check after any layout change: every screen of
+  every lesson (intro cards fresh and answered, each step, its feedback panel,
+  the result), plus home, rewards and the Seeker builder, in the Mentor tab
+  through the private preview at 360x740, 390x844 and 1280x800. The last run
+  found no page scrolling, no overflowing panel, no button off-screen and no
+  outside request. The sort game's swipe card keeps some space around its
+  centred content by design.
 
 ## Tests
 
