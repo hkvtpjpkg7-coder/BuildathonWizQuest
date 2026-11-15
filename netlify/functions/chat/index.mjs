@@ -144,6 +144,31 @@ function crisisInContext(text, session, ownerId = null) {
   return showsDistress(text) || ((hasActiveCrisis(session) || hasLimitedCrisisMarker(session?.id, ownerId)) && !explicitlySafe(text));
 }
 
+// These complete request shapes refer to the last answer, rather than a new
+// subject. Do not accept an arbitrary suffix: "shorten that and write code"
+// must not inherit a wellbeing answer's evidence. This is deliberately narrow.
+function refersToPreviousAnswer(message) {
+  const text = String(message || '').trim().replace(/[.!?]+$/, '').trim();
+  const request = '(?:please )?(?:(?:can|could|would) you )?';
+  const reference = '(?:it|this|that|your (?:answer|response|reply)|the (?:answer|response|reply))';
+  const purpose = '(?: (?:that )?i can (?:use|say)(?: (?:in|at|before|during) (?:my|the|a|an) (?:next )?(?:meeting|conversation))?)?';
+  const format = ' (?:to|in|into) (?:one|a single|a|1) (?:short )?(?:sentence|line)';
+  return new RegExp('^' + request + '(?:shorten|summari[sz]e|rephrase|simplify) ' + reference + '(?:' + format + ')?' + purpose + '(?: please)?$', 'i').test(text) ||
+    new RegExp('^' + request + '(?:say|put|express) ' + reference + format + purpose + '(?: please)?$', 'i').test(text) ||
+    new RegExp('^' + request + 'make ' + reference + ' (?:shorter|simpler|more concise|easier to remember)' + purpose + '(?: please)?$', 'i').test(text) ||
+    new RegExp('^' + request + '(?:explain|clarify) ' + reference + '(?: (?:more simply|in simpler words|a little more))?(?: please)?$', 'i').test(text) ||
+    new RegExp('^' + request + 'give me (?:just )?(?:one|a single) (?:small |simple )?(?:action|step)' + purpose + '(?: please)?$', 'i').test(text) ||
+    new RegExp('^how (?:can|could|should|do) i (?:do|practi[cs]e|apply|use) ' + reference + '(?: (?:in|at|before|during) (?:my|the|a|an) (?:next |actual )?(?:meeting|conversation))?$', 'i').test(text) ||
+    /^what (?:can|could|should) i do (?:just )?(?:before|during|after) (?:(?:i (?:enter|start|join|leave) )?(?:my|the|a|an) (?:next )?(?:meeting|conversation|call))$/i.test(text);
+}
+
+function verifiedReplyPassages(message) {
+  const oldContext = Array.isArray(message?.context_ids) ? message.context_ids : [];
+  const oldCitations = [...String(message?.content || '').matchAll(/\[(P\d+-\d+)\]/g)]
+    .map((match) => match[1]).filter((id) => oldContext.includes(id));
+  return passagesById(message?.context_used_ids ?? oldCitations);
+}
+
 // Under rate or session limits, return the same immediate support without
 // creating a session, storing messages, making a model call, or lifting caps.
 function limitedCrisisResponse(body, text, started, ownerId = null) {
@@ -366,10 +391,10 @@ export default async (req, context) => {
   };
 
   // ---- Step 7a: retrieve PDF passages for the current concern ----------------
-  // Short follow-ups often need the previous question to locate relevant
-  // passages. Add only the previous user turn to the retrieval query; the model
-  // separately receives the bounded conversation history below. A new explicit
-  // question is not forced to reuse old sources.
+  // Short follow-ups may need the previous question to locate passages, or the
+  // verified sources of the last answer when explicitly asking to reword it.
+  // The model separately receives bounded history. A new explicit subject is
+  // not forced to reuse old sources.
   let extra = null;
   let contextText = "";
   const medicalKind = medicalReferral(redacted.text, lastUser?.content);
@@ -387,20 +412,21 @@ export default async (req, context) => {
   // describes a sleep difficulty, use cautious source-free support instead.
   const sleepSupportNeeded = !flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference &&
     (isPersonalSleepConcern(redacted.text) || sleepContinuation);
+  const answerContinuation = lastAssistant?.behavior === 'ANSWER' && refersToPreviousAnswer(redacted.text);
   const followsPrevious = lastUser && (clarificationContinuation || /^(?:and|but|what about|how about|why\b|what if|tell me more|can you (?:explain|clarify)|how (?:can|do|should) i (?:do|practice|apply|use) (?:this|that)|what does (?:this|that) mean|what (?:can|could|should) i do (?:before|during|after) (?:my|the|a|an)\b)\b/i.test(redacted.text.trim()));
   if (sourceRequested) {
     // Only restore IDs verified for the immediately preceding assistant reply,
     // not every retrieved candidate or a different prior conversation turn.
     // Older saved replies predate context_used_ids; recover their explicit
     // citations only if those IDs were among the context originally supplied.
-    const oldContext = Array.isArray(lastAssistant?.context_ids) ? lastAssistant.context_ids : [];
-    const oldCitations = [...String(lastAssistant?.content || '').matchAll(/\[(P\d+-\d+)\]/g)]
-      .map((match) => match[1]).filter((id) => oldContext.includes(id));
-    const used = passagesById(lastAssistant?.context_used_ids ?? oldCitations);
+    const used = verifiedReplyPassages(lastAssistant);
     extra = { type: 'rag', source: 'Patanjali Yoga Sutras — Sri Sri Ravi Shankar', items: used, used_ids: used.map((item) => item.id), source_requested: true };
   } else if (!flags.distress && !medicalKind && !clarification && !privacyPreference && !sleepSupportNeeded) {
     const query = followsPrevious ? `${lastUser.content} ${redacted.text}` : redacted.text;
-    let hits = retrieve(query);
+    // Rephrasing needs the same actual evidence even over several short
+    // follow-ups; the latest user turn alone may contain no topic words.
+    const previousEvidence = answerContinuation ? verifiedReplyPassages(lastAssistant) : [];
+    let hits = previousEvidence.length ? previousEvidence : retrieve(query);
     // Lexical matches on words like "friends" sometimes surface text which
     // discourages befriending unhappy people or dismisses loss. Do not present
     // those chunks as support to someone expressing loneliness. This targeted
