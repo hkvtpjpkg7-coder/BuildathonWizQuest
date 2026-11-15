@@ -45,6 +45,54 @@ test('detects explicit and indirect crisis language without flagging routine use
   }
 });
 
+test('complete final self-harm denials do not manufacture a raw crisis signal', () => {
+  for (const message of [
+    'I do not want to hurt myself.',
+    "I don't want to harm myself",
+    'I don’t want to kill myself!',
+    'I am sad about a friendship ending. I do not want to hurt myself.',
+  ]) {
+    assert.equal(showsDistress(message), false, message);
+    assert.equal(showsDistress('Okay.', message), false, `prior denial: ${message}`);
+  }
+});
+
+test('qualified denials and independent danger still retain raw crisis signals', () => {
+  for (const message of [
+    'I do not want to hurt myself, but I cannot keep myself safe.',
+    "I don't want to harm myself but I might anyway.",
+    'I do not want to hurt myself. But the pills are beside me.',
+    'I do not want to hurt myself. I want to die.',
+    'I want to die. I do not want to hurt myself.',
+    'I do not want to hurt myself?',
+  ]) assert.equal(showsDistress(message), true, message);
+  assert.equal(showsDistress('I do not want to hurt myself.', 'I cannot keep myself safe.'), true);
+});
+
+test('a denial preserves original dialogue and cannot clear an active crisis', async () => {
+  const originalProvider = process.env.LLM_PROVIDER;
+  process.env.LLM_PROVIDER = 'mock';
+  try {
+    const message = 'I am sad about a friendship ending. I do not want to hurt myself.';
+    const ordinary = await ask(message);
+    assert.equal(ordinary.status, 200);
+    assert.equal(ordinary.body.flags.distress, false);
+    assert.notEqual(ordinary.body.behavior, 'CARE');
+    const stored = await loadSession(ordinary.body.session_id);
+    assert.equal(stored.messages[0].content, message);
+    assert.equal(stored.crisis_active, false);
+
+    const crisis = await ask('I cannot keep myself safe.');
+    const denial = await ask('I do not want to hurt myself.', { session_id: crisis.body.session_id });
+    assert.equal(denial.body.flags.distress, true);
+    assert.equal(denial.body.behavior, 'CARE');
+    assert.equal((await loadSession(crisis.body.session_id)).crisis_active, true);
+  } finally {
+    if (originalProvider === undefined) delete process.env.LLM_PROVIDER;
+    else process.env.LLM_PROVIDER = originalProvider;
+  }
+});
+
 test('crisis response bypasses unavailable model and does not include teaching excerpts', async () => {
   const oldProvider = process.env.LLM_PROVIDER;
   process.env.LLM_PROVIDER = 'ollama';

@@ -19,7 +19,7 @@ export const INTENT_EXAMPLES = [
   { history: ['User: I take prescribed medication.'], question: 'Should I stop taking it?', answer: { intent: 'medical', query: '', reply: '', reuse_previous: false } },
   { history: [], question: 'My partner left and I cannot keep myself safe tonight.', answer: { intent: 'care', query: '', reply: '', reuse_previous: false } },
   { history: [], question: 'Write JavaScript for a shopping cart.', answer: { intent: 'decline', query: '', reply: '', reuse_previous: false } },
-];
+].map(example => ({ ...example, answer: { subject: 'none', ...example.answer } }));
 
 export const RESPONSE_EXAMPLES = `Synthetic wording examples (not source evidence or quotes from a teacher; adapt to the actual dialogue):
 - User: "My wife doesn't love me." Possible opening: "Feeling unloved by your wife sounds painful. I can't know what she feels. Has something happened recently that left you feeling this way?" This is ordinary relationship support, not a crisis disclosure. Do not assert that the wife does or does not love them.

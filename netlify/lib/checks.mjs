@@ -89,18 +89,27 @@ const DISTRESS = [
   /\b(?:wish|want)\s+(?:i\s+)?(?:could\s+|to\s+)?(?:just\s+)?disappear\s+(?:forever|permanently)\b/i,
   /\b(?:don'?t|do not)\s+want\s+to\s+wake\s+up\b|\b(?:wish|hope)\s+i\s+(?:would|could|will)\s+not\s+wake\s+up\b/i,
 ];
+// Ignore only a complete, final denial sentence in this lexical scan. A
+// qualification (", but ..."), question, or any following sentence keeps the
+// signal for conservative handling. The original text still goes to the
+// semantic planner; this is not a safety affirmation or a crisis-state reset.
+const FINAL_SELF_HARM_DENIAL = /(^|[.!?]\s+)i\s+(?:do not|don't)\s+want to\s+(?:hurt|harm|kill)\s+myself[.!]?\s*$/i;
+const hasDistressSignal = (text) => {
+  const scan = text.replace(FINAL_SELF_HARM_DENIAL, '$1');
+  return DISTRESS.some((re) => re.test(scan));
+};
 // Only an unambiguous, standalone affirmation ends the short crisis context.
 // In particular, "I am safe now, but ..." must not hide a continuing risk.
 export const explicitlySafe = (text) => /^(?:(?:yes|thanks|thank you)[,.! ]+)?(?:i(?:'m| am) (?:feeling )?safe now|i feel safe now|i(?:'m| am) no longer in (?:immediate )?danger)[.! ]*$/i.test(String(text ?? '').replace(/[’‘]/g, "'").trim());
 export const showsDistress = (text, previousText = "") => {
   const normalized = String(text ?? "").replace(/[’‘]/g, "'").replace(/\s+/g, " ");
-  if (DISTRESS.some((re) => re.test(normalized))) return true;
+  if (hasDistressSignal(normalized)) return true;
   if (explicitlySafe(normalized)) return false;
   // While bounded recent context indicates a crisis, all replies retain the
   // support response until a clear safety statement. Avoid assuming a short
   // or indirect reply is benign simply because it lacks a keyword.
   const prior = String(previousText ?? "").replace(/[’‘]/g, "'").replace(/\s+/g, " ");
-  return DISTRESS.some((re) => re.test(prior));
+  return hasDistressSignal(prior);
 };
 export const SUPPORT_LINE =
   "If you're going through a hard time, you don't have to handle it alone. In the US you can call or text 988 (Suicide & Crisis Lifeline); elsewhere, findahelpline.com lists free local services.";

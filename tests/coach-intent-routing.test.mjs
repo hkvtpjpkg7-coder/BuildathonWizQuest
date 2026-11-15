@@ -16,10 +16,10 @@ const searchPlan = (overrides = {}) => ({
   subject: 'wellbeing', ...overrides,
 });
 
-async function send(message) {
+async function send(message, session_id) {
   const response = await handler(new Request('http://localhost/api/chat', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, ...(session_id && { session_id }) }),
   }), { ip: crypto.randomUUID() });
   assert.equal(response.status, 200);
   return response.json();
@@ -145,4 +145,36 @@ test('planner subjects are validated while omitted subjects remain backward comp
   assert.equal(compatible.valid, true);
   assert.equal(compatible.intent, 'new_topic');
   assert.equal(Object.hasOwn(compatible, 'subject'), false);
+});
+
+test('repeating a concern does not repeat intake when the planner calls it a new topic', async () => {
+  const message = 'I feel stressed.';
+  const original = globalThis.fetch;
+  try {
+    const calls = providerFixture(searchPlan({ intent: 'new_topic', query: message }));
+    const first = await send(message);
+    assert.equal(first.behavior, 'ANSWER');
+    assert.match(first.reply, /\?/, 'initial broad concern may ask for context');
+    assert.deepEqual(calls, { planner: 0, answer: 0 }, 'first clarification is local');
+
+    const second = await send(message, first.session_id);
+    assert.equal(second.behavior, 'ANSWER');
+    assert.equal(second.flags.output_valid, true);
+    assert.equal(second.flags.distress, false);
+    assert.notEqual(second.reply, first.reply, 'do not trap the person in the same intake question');
+    assert.doesNotMatch(second.reply, /\?/, 'offer support instead of demanding the same details');
+    assert.equal(calls.planner, 1);
+    if (calls.answer) {
+      assert.equal(calls.answer, 1);
+      assert.equal(second.provider, 'openai');
+      assert.ok(second.context?.used_ids?.length, 'a generated answer must identify its evidence');
+      const supplied = second.context.items.map(item => item.id);
+      const relevant = retrieve(message).map(item => item.id);
+      assert.ok(second.context.used_ids.every(id => supplied.includes(id) && relevant.includes(id)), 'only sources retrieved for this concern may be claimed');
+    } else {
+      assert.equal(second.provider, 'local');
+      assert.deepEqual(second.context?.items || [], [], 'source-free support must not claim retrieved evidence');
+      assert.deepEqual(second.context?.used_ids || [], []);
+    }
+  } finally { globalThis.fetch = original; }
 });

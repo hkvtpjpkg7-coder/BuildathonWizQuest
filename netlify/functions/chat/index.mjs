@@ -417,7 +417,9 @@ export default async (req, context) => {
     // never by treating a generated search paraphrase as a new user request.
   }
   if (plan && ['continue', 'new_topic'].includes(plan.intent)) {
-    clarification = clarificationFor(plan.query, plan.intent === 'continue' ? previousClarification : null);
+    // An unanswered clarification about this same concern must not repeat,
+    // even if the planner mislabels a repeated disclosure as a new topic.
+    clarification = clarificationFor(plan.query, previousClarification);
   }
   const conversationalReply = plan && ['acknowledge', 'close', 'clarify'].includes(plan.intent);
   const sleepContinuation = (!plan || plan.intent === 'continue') &&
