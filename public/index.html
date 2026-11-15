@@ -842,6 +842,10 @@
       navReq.textContent = state.requests.length ? `My requests (${state.requests.length})` : "My requests";
       render();
       document.getElementById("mentor")?.scrollTo?.(0, 0);
+      // The previous screen's focused control may have been removed by render.
+      // Move focus into the new screen so keyboard users can continue there.
+      const heading = root.querySelector("h2");
+      if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
     }
     navBrowse.addEventListener("click", () => go("browse"));
     navReq.addEventListener("click", () => go("requests"));
@@ -857,7 +861,13 @@
       const chips = h("div", { className: "chips", role: "group", "aria-label": "Filter by topic" },
         ...[{ id: "all", label: "All topics" }, ...TOPICS].map((t) => {
           const b = h("button", { type: "button", textContent: t.label, "aria-pressed": String(state.topic === t.id) });
-          b.addEventListener("click", () => { state.topic = t.id; render(); });
+          b.setAttribute("data-mentor-topic-filter", t.id);
+          b.addEventListener("click", () => {
+            state.topic = t.id;
+            render();
+            // Render replaces the clicked filter, so restore focus to its replacement.
+            root.querySelector(`[data-mentor-topic-filter="${t.id}"]`)?.focus();
+          });
           return b;
         }));
       const list = filterMentors(state.topic);
@@ -867,7 +877,7 @@
         open.addEventListener("click", () => go("profile", { mentorId: m.id }));
         return h("article", { className: "mentor-card" }, h("h3", {}, m.name, sampleTag()), h("p", { textContent: m.summary }), topicTags(m.topics), open);
       }));
-      return h("div", {}, h("p", { className: "hint", textContent: `Showing ${list.length} fictional sample ${list.length === 1 ? "mentor" : "mentors"}.` }), chips, grid);
+      return h("div", {}, h("h2", { textContent: "Sample mentors" }), h("p", { className: "hint", textContent: `Showing ${list.length} fictional sample ${list.length === 1 ? "mentor" : "mentors"}.` }), chips, grid);
     }
 
     function back(label, screen) {
@@ -898,6 +908,7 @@
         const more = h("button", { type: "button", className: "btn ghost", textContent: "Back to mentors" });
         more.addEventListener("click", () => go("browse"));
         return h("div", {}, h("div", { className: "card" },
+          h("h2", { textContent: "Sample request saved" }),
           h("div", { className: "done-box", role: "status" },
             h("p", {}, h("b", { textContent: "Prototype only: this request has not been sent." })),
             h("p", { textContent: `It is kept on this page as a sample request to ${m.name}. No mentor has been contacted and no session is booked. It disappears when you reload or close the page.` })),

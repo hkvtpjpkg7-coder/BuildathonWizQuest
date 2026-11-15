@@ -83,3 +83,56 @@ test('the Mentor view carries the required notices', () => {
   assert.match(mentorScript, /don't enter names, health details or other sensitive personal information/);
   assert.match(mentorScript, /Personal Coach conversation is not shared with Mentor/);
 });
+
+test('keyboard focus follows the selected filter and each new Mentor screen', () => {
+  const document = { body: {}, activeElement: null };
+  class Element {
+    constructor(tag) { this.tagName = tag.toUpperCase(); this.children = []; this.attributes = {}; this.listeners = {}; }
+    append(...children) { this.children.push(...children); }
+    replaceChildren(...children) { this.children = children; }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+    addEventListener(name, callback) { this.listeners[name] = callback; }
+    focus() { document.activeElement = this; }
+    click() { this.focus(); this.listeners.click?.({ preventDefault() {} }); }
+    querySelector(selector) {
+      const match = (element) => selector === 'h2'
+        ? element.tagName === 'H2'
+        : element.attributes['data-mentor-topic-filter'] === selector.match(/^\[data-mentor-topic-filter="([^"]+)"\]$/)?.[1];
+      return find(this, match);
+    }
+    scrollTo() {}
+  }
+  const find = (node, predicate) => {
+    if (!(node instanceof Element)) return null;
+    if (predicate(node)) return node;
+    for (const child of node.children) { const found = find(child, predicate); if (found) return found; }
+    return null;
+  };
+  const root = new Element('div');
+  const navBrowse = new Element('button');
+  const navRequests = new Element('button');
+  const mentor = new Element('div');
+  const elements = { 'mentor-root': root, 'mentor-nav-browse': navBrowse, 'mentor-nav-requests': navRequests, mentor };
+  document.getElementById = (id) => elements[id] ?? null;
+  document.createElement = (tag) => new Element(tag);
+  const context = { document, console };
+  context.globalThis = context;
+  vm.runInNewContext(mentorScript, context);
+
+  const filter = root.querySelector('[data-mentor-topic-filter="work-stress"]');
+  assert.ok(filter);
+  filter.click();
+  assert.equal(document.activeElement, root.querySelector('[data-mentor-topic-filter="work-stress"]'));
+  assert.notEqual(document.activeElement, filter, 'focus moved to the replacement filter');
+  const profile = find(root, (e) => e.tagName === 'BUTTON' && e.attributes['aria-label'] === 'View sample profile: Mira');
+  assert.ok(profile);
+  profile.click();
+  assert.equal(document.activeElement, root.querySelector('h2'));
+  assert.equal(document.activeElement.tabIndex, -1);
+  const request = find(root, (e) => e.tagName === 'BUTTON' && e.textContent === 'Start a sample request');
+  request.click();
+  assert.equal(document.activeElement, root.querySelector('h2'));
+  navRequests.click();
+  assert.equal(document.activeElement, root.querySelector('h2'));
+  assert.equal(document.activeElement.textContent, 'My requests');
+});
