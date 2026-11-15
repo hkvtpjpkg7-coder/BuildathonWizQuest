@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import handler from '../netlify/functions/chat/index.mjs';
 import { retrieve } from '../netlify/lib/rag.mjs';
 import { loadSession } from '../netlify/lib/store.mjs';
+import { withInitialPlan } from './fixtures/planned-fetch.mjs';
 
 process.env.AUTH_PROVIDER = 'off'; // isolated test process
 
@@ -15,7 +16,7 @@ async function withModelReply(reply, run) {
   const oldFetch = globalThis.fetch;
   process.env.LLM_PROVIDER = 'openai';
   process.env.OPENAI_API_KEY = 'test-only';
-  globalThis.fetch = async () => Response.json({choices:[{message:{content:JSON.stringify({behavior:'ANSWER',reply})}}]});
+  globalThis.fetch = withInitialPlan(async () => Response.json({choices:[{message:{content:JSON.stringify({behavior:'ANSWER',reply})}}]}));
   try {
     const request = new Request('http://localhost/api/chat', {
       method:'POST', headers:{'content-type':'application/json'},

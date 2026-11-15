@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import handler from '../netlify/functions/chat/index.mjs';
 import { loadSession } from '../netlify/lib/store.mjs';
 import { clarificationFor, isClarificationContinuation, requestsSource } from '../netlify/lib/clarify.mjs';
+import { withInitialPlan } from './fixtures/planned-fetch.mjs';
 
 process.env.QUIET_LOGS = '1';
 process.env.AUTH_PROVIDER = 'off';
@@ -16,9 +17,13 @@ async function send(message, session_id) {
 }
 
 test('greetings and brief emotional concerns get supportive clarification without invented sources', async () => {
-  process.env.LLM_PROVIDER = 'ollama'; // These paths must work without a model.
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
-  globalThis.fetch = async () => { throw new Error('A clarification must not call a model'); };
+  globalThis.fetch = async (_url, options) => {
+    const history = JSON.parse(options.body).messages;
+    assert.match(history[0].content, /^CONVERSATION_PLANNER/, 'clarification does not call the teaching model');
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ intent: 'new_topic', query: history.at(-1).content, reply: '', reuse_previous: false }) } }] });
+  };
   try {
     const greeting = await send('bro');
     assert.equal(greeting.body.behavior, 'ANSWER');
@@ -58,23 +63,34 @@ test('source intent distinguishes asking about causes from asking for provenance
 });
 
 test('loneliness follow-up with no relevant teaching stays supportive rather than forcing a source', async () => {
-  process.env.LLM_PROVIDER = 'mock';
-  const first = await send('I feel lonely');
-  const second = await send('I miss my family', first.body.session_id);
-  assert.equal(second.body.behavior, 'ANSWER');
-  assert.doesNotMatch(second.body.reply, /pdf|passage|\[P\d+-\d+\]|what feels most important/i);
-  assert.equal(second.body.context.items.length, 0);
-  const repeat = await send('I feel lonely');
-  const privacy = await send("I don't want to share more", repeat.body.session_id);
-  assert.equal(privacy.body.behavior, 'ANSWER');
-  assert.match(privacy.body.reply, /don't have to share/i);
-  assert.doesNotMatch(privacy.body.reply, /\?/);
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_url, options) => {
+    assert.match(JSON.parse(options.body).messages[0].content, /^CONVERSATION_PLANNER/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ intent: 'continue', query: 'I miss my family', reply: '', reuse_previous: false }) } }] });
+  };
+  try {
+    const first = await send('I feel lonely');
+    const second = await send('I miss my family', first.body.session_id);
+    assert.equal(second.body.behavior, 'ANSWER');
+    assert.doesNotMatch(second.body.reply, /pdf|passage|\[P\d+-\d+\]|what feels most important/i);
+    assert.equal(second.body.context.items.length, 0);
+    const repeat = await send('I feel lonely');
+    const privacy = await send("I don't want to share more", repeat.body.session_id);
+    assert.equal(privacy.body.behavior, 'ANSWER');
+    assert.match(privacy.body.reply, /don't have to share/i);
+    assert.doesNotMatch(privacy.body.reply, /\?/);
+  } finally { globalThis.fetch = original; }
 });
 
 test('sleep concerns receive grounded-in-situation support without forcing irrelevant teachings', async () => {
-  process.env.LLM_PROVIDER = 'ollama';
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
-  globalThis.fetch = async () => { throw new Error('Sleep support should not call the model'); };
+  globalThis.fetch = async (_url, options) => {
+    const history = JSON.parse(options.body).messages;
+    assert.match(history[0].content, /^CONVERSATION_PLANNER/, 'sleep support does not call the teaching model');
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ intent: 'continue', query: 'I have trouble sleeping and lie awake worrying about an upcoming meeting at work.', reply: '', reuse_previous: false }) } }] });
+  };
   try {
     const first = await send('I am not sleeping properly');
     assert.equal(first.body.behavior, 'ANSWER');
@@ -108,14 +124,14 @@ test('verified sources stay separate until requested', async () => {
   process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
   let seenHistory, calls = 0;
-  globalThis.fetch = async (_url, options) => {
+  globalThis.fetch = withInitialPlan(async (_url, options) => {
     calls++;
     seenHistory = JSON.parse(options.body).messages;
     const last = seenHistory.at(-1).content;
     const id = last.match(/\[(P\d+-\d+)\]/)?.[1];
     assert.ok(id, 'grounded request contains reference material');
     return Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'ANSWER', reply:'That sounds tiring. A gentle pause can be a starting point.', source_ids:[id] }) } }] });
-  };
+  });
   try {
     const next = await send('How can I calm my restless mind during meditation?');
     assert.equal(next.status, 200);
@@ -136,12 +152,19 @@ test('verified sources stay separate until requested', async () => {
 });
 
 test('an unrelated question after a clarification does not reuse earlier references', async () => {
-  process.env.LLM_PROVIDER = 'mock';
-  const first = await send('I am not sleeping properly');
-  const next = await send('What is the capital of France?', first.body.session_id);
-  assert.equal(next.body.behavior, 'DECLINE');
-  assert.equal(next.body.context.items.length, 0);
-  assert.doesNotMatch(next.body.reply, /pdf|passage/i);
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_url, options) => {
+    assert.match(JSON.parse(options.body).messages[0].content, /^CONVERSATION_PLANNER/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ intent: 'new_topic', query: 'What is the capital of France?', reply: '', reuse_previous: false }) } }] });
+  };
+  try {
+    const first = await send('I am not sleeping properly');
+    const next = await send('What is the capital of France?', first.body.session_id);
+    assert.equal(next.body.behavior, 'DECLINE');
+    assert.equal(next.body.context.items.length, 0);
+    assert.doesNotMatch(next.body.reply, /pdf|passage/i);
+  } finally { globalThis.fetch = original; }
 });
 
 test('sleep concerns still prioritize crisis and medication support', async () => {
@@ -168,17 +191,28 @@ test('a general educational question on sleep can still consult the source', asy
   assert.ok(out.body.context.items.length > 0);
   assert.notEqual(out.body.provider, 'local');
   const previous = await send('I have trouble falling asleep at night');
-  const topical = await send('Which sutra discusses sleep?', previous.body.session_id);
-  assert.equal(topical.body.behavior, 'ANSWER');
-  assert.notEqual(topical.body.provider, 'local');
-  assert.ok(topical.body.context.items.length > 0);
-  assert.doesNotMatch(topical.body.reply, /didn't use a specific source/i);
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_url, options) => {
+    const history = JSON.parse(options.body).messages;
+    const output = history[0].content.startsWith('CONVERSATION_PLANNER')
+      ? { intent: 'new_topic', query: 'Which sutra discusses sleep?', reply: '', reuse_previous: false }
+      : { behavior: 'ANSWER', reply: 'The commentary discusses sleep as a state of mind.', source_ids: [history.at(-1).content.match(/\[(P\d+-\d+)\]/)[1]] };
+    return Response.json({ choices: [{ message: { content: JSON.stringify(output) } }] });
+  };
+  try {
+    const topical = await send('Which sutra discusses sleep?', previous.body.session_id);
+    assert.equal(topical.body.behavior, 'ANSWER');
+    assert.notEqual(topical.body.provider, 'local');
+    assert.ok(topical.body.context.items.length > 0);
+    assert.doesNotMatch(topical.body.reply, /didn't use a specific source/i);
+  } finally { globalThis.fetch = original; }
 });
 
 test('model-declared decline cannot smuggle unsupported advice or claimed sources', async () => {
   process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'DECLINE', reply:'Patanjali says to abandon all your friends.' }) } }] });
+  globalThis.fetch = withInitialPlan(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'DECLINE', reply:'Patanjali says to abandon all your friends.' }) } }] }));
   try {
     const out = await send('How can I calm my restless mind during meditation?');
     assert.equal(out.body.behavior, 'DECLINE');
@@ -190,7 +224,7 @@ test('model-flagged crisis remains on the care path across follow-ups', async ()
   process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
   let calls = 0;
-  globalThis.fetch = async () => { calls++; return Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'CARE', reply:'Unsupported unsafe content' }) } }] }); };
+  globalThis.fetch = withInitialPlan(async () => { calls++; return Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'CARE', reply:'Unsupported unsafe content' }) } }] }); });
   try {
     const first = await send('I feel restless and overwhelmed by thoughts during work every day.');
     assert.equal(first.body.behavior, 'CARE');
@@ -208,7 +242,7 @@ test('model-flagged crisis remains on the care path across follow-ups', async ()
 test('model-reported CARE is not downgraded by hallucinated references', async () => {
   process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'CARE', reply:'Unsafe source [P9999-99]', source_ids:['P9999-99'] }) } }] });
+  globalThis.fetch = withInitialPlan(async () => Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'CARE', reply:'Unsafe source [P9999-99]', source_ids:['P9999-99'] }) } }] }));
   try {
     const out = await send('I feel restless and overwhelmed by thoughts during work every day.');
     assert.equal(out.body.behavior, 'CARE');
@@ -224,10 +258,10 @@ test('unsupported medical cure and medication instructions are blocked even with
   process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
   const original = globalThis.fetch;
   let unsafe = '';
-  globalThis.fetch = async (_url, options) => {
+  globalThis.fetch = withInitialPlan(async (_url, options) => {
     const id = JSON.parse(options.body).messages.at(-1).content.match(/\[(P\d+-\d+)\]/)[1];
     return Response.json({ choices: [{ message: { content: JSON.stringify({ behavior:'ANSWER', reply:unsafe, source_ids:[id] }) } }] });
-  };
+  });
   try {
     for (unsafe of ['This practice cures depression.', 'Stop taking your antidepressants.', 'Stop your prescribed antidepressants.', 'Discontinue your medication.', 'Meditation is a cure for depression.', 'Replace your medication with yoga.', 'Try yoga instead of taking your prescribed meds.']) {
       const out = await send('How can I calm my restless mind during meditation?');

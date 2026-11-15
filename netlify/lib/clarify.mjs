@@ -50,7 +50,7 @@ export function requestsSource(message) {
   const text = String(message || '').trim();
   // "Source of my anxiety" asks about a cause, not citations for the last
   // response. A demonstrative or reference to the answer is different.
-  if (/\bsource\s+of\s+(?!(?:this|that|these|those|your (?:answer|response|reply)|the (?:answer|response|reply))\b)/i.test(text)) return false;
+  if (/\bsource\s+of\s+(?!(?:this|that|these|those|your (?:(?:last|previous) )?(?:answer|response|reply)|the (?:(?:last|previous) )?(?:answer|response|reply))\b)/i.test(text)) return false;
   if (/\bwhere\s+did\s+you\s+(?:get|find|read|learn)\s+(?:this|that|it|these|those)\b/i.test(text)) return true;
   const explicitReference = /\b(?:sources?|references?|citations?|cited|reference ids?)\b/i.test(text);
   const whichPriorTeaching = /\b(?:sutra|sutras|verse|verses)\b/i.test(text) &&

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../netlify/functions/chat/index.mjs';
+import { withInitialPlan } from './fixtures/planned-fetch.mjs';
 
 process.env.QUIET_LOGS = '1';
 process.env.AUTH_PROVIDER = 'off'; // isolated test process
@@ -65,7 +66,7 @@ test('unknown citations in model answers are not shown as sourced advice', async
   process.env.LLM_PROVIDER = 'openai';
   process.env.OPENAI_API_KEY = 'test-only';
   const prior = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({choices: [{message: {content: JSON.stringify({behavior:'ANSWER', reply:'Try this [P9999-99].'})}}]});
+  globalThis.fetch = withInitialPlan(async () => Response.json({choices: [{message: {content: JSON.stringify({behavior:'ANSWER', reply:'Try this [P9999-99].'})}}]}));
   try {
     const {status, body} = await send('How can I calm my restless mind during meditation?');
     assert.equal(status, 200);
@@ -78,16 +79,24 @@ test('unknown citations in model answers are not shown as sourced advice', async
 test('unrelated new question does not inherit evidence from an earlier concern', async () => {
   process.env.LLM_PROVIDER = 'mock';
   const first = await send('I feel distracted when I try to meditate. How can I focus?');
-  const second = await send('What is the capital of France?', first.body.session_id);
-  assert.equal(second.body.behavior, 'DECLINE');
-  assert.equal(second.body.context.items.length, 0);
+  process.env.LLM_PROVIDER = 'openai'; process.env.OPENAI_API_KEY = 'test-only';
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_url, options) => {
+    assert.match(JSON.parse(options.body).messages[0].content, /^CONVERSATION_PLANNER/);
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ intent: 'new_topic', query: 'What is the capital of France?', reply: '', reuse_previous: false }) } }] });
+  };
+  try {
+    const second = await send('What is the capital of France?', first.body.session_id);
+    assert.equal(second.body.behavior, 'DECLINE');
+    assert.equal(second.body.context.items.length, 0);
+  } finally { globalThis.fetch = original; }
 });
 
 test('malformed provider output is not treated as safe sourced advice', async () => {
   process.env.LLM_PROVIDER = 'openai';
   process.env.OPENAI_API_KEY = 'test-only';
   const prior = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({choices: [{message: {content: 'unstructured unsourced advice'}}]});
+  globalThis.fetch = withInitialPlan(async () => Response.json({choices: [{message: {content: 'unstructured unsourced advice'}}]}));
   try {
     const {body} = await send('How can I calm my restless mind during meditation?');
     assert.equal(body.behavior, 'DECLINE');

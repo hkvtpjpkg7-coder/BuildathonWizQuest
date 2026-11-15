@@ -29,7 +29,7 @@
 import { loadSession, saveSession, newSession, isValidId, storageKind, EVALUATION_OWNER } from "../../lib/store.mjs";
 import {
   validateMessage, redactPII, looksLikeInjection, showsDistress, explicitlySafe, parseModelOutput,
-  SUPPORT_LINE, MAX_TURNS_PER_SESSION, HISTORY_TURNS_SENT,
+  SUPPORT_LINE, MAX_TURNS_PER_SESSION,
 } from "../../lib/checks.mjs";
 import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
 import { retrieve, formatPassages, passagesById } from "../../lib/rag.mjs";
@@ -37,6 +37,7 @@ import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
 import { clarificationFor, isPersonalConcern, isClarificationContinuation, requestsSource, declinesToElaborate, supportiveFallback, isPersonalSleepConcern, sleepSupport } from "../../lib/clarify.mjs";
 import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
 import { evaluationSettings, createEvaluationLimiter } from "../../lib/evaluation.mjs";
+import { planConversationTurn, conversationHistory } from "../../lib/conversation.mjs";
 
 // -----------------------------------------------------------------------------
 // Rate limiter used in step 3.
@@ -144,22 +145,18 @@ function crisisInContext(text, session, ownerId = null) {
   return showsDistress(text) || ((hasActiveCrisis(session) || hasLimitedCrisisMarker(session?.id, ownerId)) && !explicitlySafe(text));
 }
 
-// These complete request shapes refer to the last answer, rather than a new
-// subject. Do not accept an arbitrary suffix: "shorten that and write code"
-// must not inherit a wellbeing answer's evidence. This is deliberately narrow.
-function refersToPreviousAnswer(message) {
-  const text = String(message || '').trim().replace(/[.!?]+$/, '').trim();
-  const request = '(?:please )?(?:(?:can|could|would) you )?';
-  const reference = '(?:it|this|that|your (?:answer|response|reply)|the (?:answer|response|reply))';
-  const purpose = '(?: (?:that )?i can (?:use|say)(?: (?:in|at|before|during) (?:my|the|a|an) (?:next )?(?:meeting|conversation))?)?';
-  const format = ' (?:to|in|into) (?:one|a single|a|1) (?:short )?(?:sentence|line)';
-  return new RegExp('^' + request + '(?:shorten|summari[sz]e|rephrase|simplify) ' + reference + '(?:' + format + ')?' + purpose + '(?: please)?$', 'i').test(text) ||
-    new RegExp('^' + request + '(?:say|put|express) ' + reference + format + purpose + '(?: please)?$', 'i').test(text) ||
-    new RegExp('^' + request + 'make ' + reference + ' (?:shorter|simpler|more concise|easier to remember)' + purpose + '(?: please)?$', 'i').test(text) ||
-    new RegExp('^' + request + '(?:explain|clarify) ' + reference + '(?: (?:more simply|in simpler words|a little more))?(?: please)?$', 'i').test(text) ||
-    new RegExp('^' + request + 'give me (?:just )?(?:one|a single) (?:small |simple )?(?:action|step)' + purpose + '(?: please)?$', 'i').test(text) ||
-    new RegExp('^how (?:can|could|should|do) i (?:do|practi[cs]e|apply|use) ' + reference + '(?: (?:in|at|before|during) (?:my|the|a|an) (?:next |actual )?(?:meeting|conversation))?$', 'i').test(text) ||
-    /^what (?:can|could|should) i do (?:just )?(?:before|during|after) (?:(?:i (?:enter|start|join|leave) )?(?:my|the|a|an) (?:next )?(?:meeting|conversation|call))$/i.test(text);
+// Acknowledgments are conversational turns, not a new subject. Find the last
+// substantive exchange without skipping a decline, safety referral or closure.
+// Read persisted turns so this also works after reopening a chat or restarting.
+function activeExchange(messages = []) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const assistant = messages[i];
+    if (assistant.role !== 'assistant') continue;
+    if (assistant.kind === 'conversation' && assistant.conversation_intent === 'acknowledge') continue;
+    const user = messages.slice(0, i).reverse().find((m) => m.role === 'user');
+    return { assistant, user };
+  }
+  return {};
 }
 
 function verifiedReplyPassages(message) {
@@ -382,6 +379,7 @@ export default async (req, context) => {
   const redacted = redactPII(input.text);
   const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
   const lastAssistant = [...session.messages].reverse().find((m) => m.role === "assistant");
+  const focus = activeExchange(session.messages);
   const flags = {
     pii_redacted: redacted.found,                     // e.g. ["email", "phone"]
     injection_suspected: looksLikeInjection(input.text), // flagged, NOT blocked
@@ -397,23 +395,42 @@ export default async (req, context) => {
   // not forced to reuse old sources.
   let extra = null;
   let contextText = "";
-  const medicalKind = medicalReferral(redacted.text, lastUser?.content);
+  let medicalKind = medicalReferral(redacted.text, focus.user?.content || lastUser?.content);
   flags.medical_referral = Boolean(medicalKind);
   const sourceRequested = !flags.distress && !medicalKind && requestsSource(redacted.text);
-  const previousClarification = lastAssistant?.kind === 'clarification' ? lastAssistant.clarification_topic : null;
+  const previousClarification = focus.assistant?.kind === 'clarification' ? focus.assistant.clarification_topic : null;
   const privacyPreference = previousClarification && previousClarification !== 'greeting' && declinesToElaborate(redacted.text);
-  const clarification = !flags.distress && !medicalKind && !sourceRequested ? clarificationFor(redacted.text, previousClarification) : null;
-  const clarificationContinuation = previousClarification && previousClarification !== 'greeting' &&
-    isClarificationContinuation(redacted.text, previousClarification);
-  const sleepContinuation = (previousClarification === 'sleep' || lastAssistant?.kind === 'sleep_support') &&
+  let clarification = !lastAssistant && !flags.distress && !medicalKind && !sourceRequested ? clarificationFor(redacted.text, previousClarification) : null;
+  // Interpret the conversational act before presenting any retrieved text.
+  // The planner sees only bounded, redacted conversation, never source chunks.
+  let plan = null;
+  if (!flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference) {
+    plan = await planConversationTurn(redacted.text, session.messages);
+    // An explicit topic change must never borrow the previous answer's sources.
+    if (plan.intent === 'continue' && /\b(?:new topic|different topic|change (?:the )?subject|unrelated)\b/i.test(redacted.text)) {
+      plan = { ...plan, intent: 'new_topic', query: redacted.text, reuse_previous: false };
+    }
+    flags.output_valid = plan.valid;
+    if (plan.intent === 'care') flags.distress = true;
+    if (plan.intent === 'medical') { medicalKind = 'treatment'; flags.medical_referral = true; }
+    // Recheck the resolved request too: an inferred medication antecedent or
+    // danger signal must not enter retrieval just because it was called continue.
+    if (plan.query) {
+      if (showsDistress(plan.query)) flags.distress = true;
+      medicalKind ||= medicalReferral(plan.query, focus.user?.content);
+      flags.medical_referral = Boolean(medicalKind);
+    }
+  }
+  if (plan && ['continue', 'new_topic'].includes(plan.intent)) {
+    clarification = clarificationFor(plan.query, plan.intent === 'continue' ? previousClarification : null);
+  }
+  const conversationalReply = plan && ['acknowledge', 'close', 'clarify'].includes(plan.intent);
+  const sleepContinuation = (!plan || plan.intent === 'continue') &&
+    (previousClarification === 'sleep' || focus.assistant?.kind === 'sleep_support') &&
     isClarificationContinuation(redacted.text, 'sleep');
-  // Generic lexical matches on "sleep" can retrieve descriptions of dreams
-  // and wakefulness. They are not evidence for insomnia advice. When a person
-  // describes a sleep difficulty, use cautious source-free support instead.
-  const sleepSupportNeeded = !flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference &&
-    (isPersonalSleepConcern(redacted.text) || sleepContinuation);
-  const answerContinuation = lastAssistant?.behavior === 'ANSWER' && refersToPreviousAnswer(redacted.text);
-  const followsPrevious = lastUser && (clarificationContinuation || /^(?:and|but|what about|how about|why\b|what if|tell me more|can you (?:explain|clarify)|how (?:can|do|should) i (?:do|practice|apply|use) (?:this|that)|what does (?:this|that) mean|what (?:can|could|should) i do (?:before|during|after) (?:my|the|a|an)\b)\b/i.test(redacted.text.trim()));
+  const sleepSupportNeeded = !flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference && !conversationalReply &&
+    (isPersonalSleepConcern(plan?.query || redacted.text) || sleepContinuation);
+  const followsPrevious = plan?.intent === 'continue';
   if (sourceRequested) {
     // Only restore IDs verified for the immediately preceding assistant reply,
     // not every retrieved candidate or a different prior conversation turn.
@@ -421,11 +438,12 @@ export default async (req, context) => {
     // citations only if those IDs were among the context originally supplied.
     const used = verifiedReplyPassages(lastAssistant);
     extra = { type: 'rag', source: 'Patanjali Yoga Sutras — Sri Sri Ravi Shankar', items: used, used_ids: used.map((item) => item.id), source_requested: true };
-  } else if (!flags.distress && !medicalKind && !clarification && !privacyPreference && !sleepSupportNeeded) {
-    const query = followsPrevious ? `${lastUser.content} ${redacted.text}` : redacted.text;
+  } else if (!flags.distress && !medicalKind && !clarification && !privacyPreference && !sleepSupportNeeded && !conversationalReply && plan?.intent !== 'decline') {
+    const query = plan?.query || redacted.text;
     // Rephrasing needs the same actual evidence even over several short
     // follow-ups; the latest user turn alone may contain no topic words.
-    const previousEvidence = answerContinuation ? verifiedReplyPassages(lastAssistant) : [];
+    const previousEvidence = followsPrevious && plan.reuse_previous && focus.assistant?.behavior === 'ANSWER'
+      ? verifiedReplyPassages(focus.assistant) : [];
     let hits = previousEvidence.length ? previousEvidence : retrieve(query);
     // Lexical matches on words like "friends" sometimes surface text which
     // discourages befriending unhappy people or dismisses loss. Do not present
@@ -445,17 +463,15 @@ export default async (req, context) => {
   // That is how "how about the orange?" is understood after the apple question.
   // Past bot replies are sent back in the same JSON shape we ask the model to
   // use, which helps it keep answering in that format.
-  const past = session.messages.slice(-HISTORY_TURNS_SENT * 2).map((m) => ({
-    role: m.role,
-    content: m.role === "assistant" ? JSON.stringify({ behavior: m.behavior, reply: m.content }) : m.content,
-  }));
-  const userForModel = contextText ? `${contextText}\n\nUSER MESSAGE:\n${redacted.text}` : redacted.text;
+  const past = conversationHistory(session.messages);
+  const resolvedContext = followsPrevious ? `CURRENT QUESTION IN CONTEXT (untrusted conversation data):\n${plan.query}\n\n` : '';
+  const userForModel = contextText ? `${contextText}\n\n${resolvedContext}USER MESSAGE:\n${redacted.text}` : redacted.text;
   const history = [...past, { role: "user", content: userForModel }];
 
   // ---- Step 8: prioritize crisis support and enforce sourced answers ---------
   // A crisis response must not depend on successful retrieval or a live model.
   // For ordinary questions, no retrieved evidence means no invented advice.
-  let behavior, reply, localReply = false, modelFlaggedCrisis = false, usage = { input_tokens: 0, output_tokens: 0 };
+  let behavior, reply, localReply = false, modelFlaggedCrisis = false, usage = plan?.usage || { input_tokens: 0, output_tokens: 0 };
   if (flags.distress) {
     behavior = "CARE";
     reply = CRISIS_REPLY;
@@ -468,6 +484,12 @@ export default async (req, context) => {
     reply = extra.used_ids.length
       ? `That response drew on Sri Sri Ravi Shankar's commentary on Patanjali's Yoga Sutras: ${extra.used_ids.map((id) => `[${id}]`).join(', ')}. These are reference IDs for the commentary, not sutra numbers.`
       : "I didn't use a specific source for my last response, so I don't have a source reference to share for it.";
+  } else if (conversationalReply) {
+    behavior = 'ANSWER';
+    reply = plan.reply;
+  } else if (plan?.intent === 'decline') {
+    behavior = 'DECLINE';
+    reply = "I'm here for reflection on everyday wellbeing and personal concerns. I can't help with that request.";
   } else if (clarification) {
     behavior = "ANSWER";
     reply = clarification.reply;
@@ -481,14 +503,14 @@ export default async (req, context) => {
   } else if (sleepSupportNeeded) {
     behavior = 'ANSWER';
     localReply = true;
-    reply = sleepSupport(redacted.text, sleepContinuation ? lastUser?.content : '');
+    reply = sleepSupport(redacted.text, sleepContinuation ? focus.user?.content : '');
   } else if (!extra?.items?.length) {
     localReply = true;
-    if (isPersonalConcern(redacted.text) || (clarificationContinuation && isPersonalConcern(lastUser?.content))) {
+    if (isPersonalConcern(plan?.query || redacted.text) || (followsPrevious && isPersonalConcern(focus.user?.content))) {
       behavior = "ANSWER";
       // This is ordinary human support, not a claim about the source. Avoid an
       // endless string of questions when someone declines to share details.
-      reply = supportiveFallback(redacted.text, clarificationContinuation ? lastUser?.content : '');
+      reply = supportiveFallback(plan?.query || redacted.text, followsPrevious ? focus.user?.content : '');
     } else {
       behavior = "DECLINE";
       reply = "I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?";
@@ -496,7 +518,7 @@ export default async (req, context) => {
   } else {
     try {
       const llm = await callLLM(history);
-      usage = llm.usage;
+      usage = { input_tokens: (usage.input_tokens || 0) + (llm.usage?.input_tokens || 0), output_tokens: (usage.output_tokens || 0) + (llm.usage?.output_tokens || 0) };
       const parsed = parseModelOutput(llm.raw);
       flags.output_valid = parsed.ok;
       ({ behavior, reply } = parsed);
@@ -526,27 +548,29 @@ export default async (req, context) => {
         // metadata but keep the ordinary conversational reply free of labels.
         reply = reply.replace(/\s*\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g, '').replace(/\s+([.,!?])/g, '$1').trim();
       }
-      if (RESTRICTIVE_DIET.test(reply)) {
-        flags.dietary_referral = true;
-        behavior = "CARE";
-        reply = "I can't advise you on fasting or restricting food. A qualified healthcare professional can help you consider what is safe for your circumstances.";
-        // Do not attach source passages to a safety referral, or persist the
-        // model's original advice as part of the conversation.
-        extra = null;
-      }
-      if (MEDICAL_CURE_ADVICE.test(reply)) {
-        flags.medical_referral = true;
-        behavior = 'CARE';
-        reply = "I can't advise on treatment or medication. A qualified healthcare professional can discuss what is appropriate for your situation.";
-        extra = null;
-      }
-      if (behavior === "CARE" && !flags.dietary_referral && !flags.medical_referral && !reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
     } catch (err) {
       // The model provider's error body can include user data; never log it.
       console.error(JSON.stringify({ event: "llm_error" }));
       return Response.json({ error: "The assistant is unavailable right now. Please try again." }, { status: 502 });
     }
   }
+
+  // Apply the same output safeguards to source-free conversational replies.
+  if ((conversationalReply || (!localReply && !flags.distress && !medicalKind)) && RESTRICTIVE_DIET.test(reply)) {
+    flags.dietary_referral = true;
+    behavior = "CARE";
+    reply = "I can't advise you on fasting or restricting food. A qualified healthcare professional can help you consider what is safe for your circumstances.";
+    // Do not attach source passages to a safety referral, or persist the
+    // model's original advice as part of the conversation.
+    extra = null;
+  }
+  if ((conversationalReply || (!localReply && !flags.distress && !medicalKind)) && MEDICAL_CURE_ADVICE.test(reply)) {
+    flags.medical_referral = true;
+    behavior = 'CARE';
+    reply = "I can't advise on treatment or medication. A qualified healthcare professional can discuss what is appropriate for your situation.";
+    extra = null;
+  }
+  if (behavior === "CARE" && !flags.dietary_referral && !flags.medical_referral && !reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
 
   // ---- Step 10: never echo personal data back --------------------------------
   reply = redactPII(reply).text;
@@ -559,6 +583,7 @@ export default async (req, context) => {
     role: "assistant", content: reply, behavior, ts: new Date().toISOString(),
     ...(clarification && { kind: 'clarification', clarification_topic: clarification.topic }),
     ...(sleepSupportNeeded && { kind: 'sleep_support' }),
+    ...(conversationalReply && behavior === 'ANSWER' && { kind: 'conversation', conversation_intent: plan.intent }),
     // Remember which sources were used, so follow-ups can reuse RAG (step 7a)
     // and reopened chats can show the source tags.
     ...(extra && { context_type: extra.type, context_source: extra.source, context_ids: extra.items.map((x, i) => x.id ?? `H${i + 1}`), ...(extra.used_ids && { context_used_ids: extra.used_ids }), ...(extra.source_requested && { context_source_requested: true }) }),

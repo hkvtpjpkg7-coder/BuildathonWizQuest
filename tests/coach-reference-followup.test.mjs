@@ -19,9 +19,24 @@ async function send(message, session_id) {
 
 const concern = 'I compare myself to my colleagues and feel I am not doing enough. How can I grow without being so hard on myself?';
 
+function planningResponse(history) {
+  if (!history[0].content.startsWith('CONVERSATION_PLANNER')) return null;
+  const message = history.at(-1).content;
+  const previous = history.filter(turn => turn.role === 'assistant').at(-1);
+  const previousBehavior = previous ? JSON.parse(previous.content).behavior : null;
+  const independent = /capital of France|JavaScript code/i.test(message) || previousBehavior !== 'ANSWER';
+  return Response.json({ choices: [{ message: { content: JSON.stringify({
+    intent: independent ? 'new_topic' : 'continue',
+    query: independent ? message : 'Apply the earlier advice about comparison and worry before a team meeting.',
+    reply: '', reuse_previous: !independent,
+  }) } }] });
+}
+
 function groundedProvider(histories) {
   return async (_url, options) => {
     const history = JSON.parse(options.body).messages;
+    const planning = planningResponse(history);
+    if (planning) return planning;
     histories.push(history);
     const ids = [...history.at(-1).content.matchAll(/\[(P\d+-\d+)\]/g)].map((match) => match[1]);
     assert.ok(ids.length, 'provider receives reference material');
@@ -79,7 +94,7 @@ test('new topics and appended unrelated requests do not borrow previous answer e
       const next = await send(prompt, first.session_id);
       assert.equal(next.behavior, 'DECLINE', prompt);
       assert.deepEqual(next.context.items, [], prompt);
-      assert.equal(histories.length, calls, 'no model call without relevant evidence');
+      assert.equal(histories.length, calls, 'no teaching model call without relevant evidence');
     }
   } finally { globalThis.fetch = original; }
 });
@@ -92,7 +107,7 @@ test('an action request naming a new subject uses its own retrieval and can stil
     // "small action" has lexical matches in the commentary, even without a
     // preceding conversation. Those matches are not evidence of scope: the
     // model must still be able to decline the unrelated programming request.
-    globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify({
+    globalThis.fetch = async (_url, options) => planningResponse(JSON.parse(options.body).messages) || Response.json({ choices: [{ message: { content: JSON.stringify({
       behavior: 'DECLINE', reply: 'I cannot help with programming.', source_ids: [],
     }) } }] });
     const prompt = 'Give me just one small action to write JavaScript code.';
@@ -142,7 +157,7 @@ test('follow-up answers still reject invented citations and preserve crisis prio
   globalThis.fetch = groundedProvider(histories);
   try {
     const first = await send(concern);
-    globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify({
+    globalThis.fetch = async (_url, options) => planningResponse(JSON.parse(options.body).messages) || Response.json({ choices: [{ message: { content: JSON.stringify({
       behavior: 'ANSWER', reply: 'Unsupported claim.', source_ids: ['P9999-99'],
     }) } }] });
     const invalid = await send('Can you shorten that?', first.session_id);
