@@ -1,58 +1,106 @@
-# Mentor (prototype)
+# Mentor: Yoga Sutras Chapter 1 lessons
 
-The **Mentor · prototype** tab shows the intended journey for finding a human
-mentor. It is a front-end prototype only: **every mentor and request is sample
-data**, and nothing is sent to anyone.
+The **Mentor** tab is a guided path through Chapter 1 (Samadhi Pada) of
+Patanjali's Yoga Sutras, taught from Gurudev's commentary. It replaces the
+earlier sample "find a mentor" prototype.
 
-## The journey
+## What the learner sees
 
-1. **Browse mentors.** Five fictional sample profiles, each marked *Sample*.
-   Filter by topic: Work stress, Relationships, Meditation practice or
-   Personal growth.
-2. **Open a profile.** See the mentor's sample introduction and areas of focus.
-3. **Start a sample request.** Choose one of the mentor's topics and,
-   optionally, add a short description (up to 300 characters).
-4. **My requests.** The request appears with the status *Prototype only: not
-   sent*. It can be removed.
+- **Their Seeker.** On the first visit they build a Seeker: one of five skin
+  tones (chosen once), six hair styles, four beard styles (none, stubble, short,
+  full), glasses (none, round, square) and a saffron or white robe. The Seeker
+  sits cross-legged in the avatar. "Change Seeker" later offers everything but
+  the skin tone.
+- **Level and rewards on the home screen.** A Prana meter shows the Seeker's
+  level on a beginner-to-expert scale of nine: Seed, Sprout, Roots, Stem,
+  Floating Leaf, Bud, Opening Bud, Blossom and Full Lotus (at 0, 50, 150, 300,
+  500, 800, 1200, 1800 and 2600 Prana). Four tiles show Prana, badges, support
+  gems and lotus petals; tapping one opens a rewards page with every badge.
+- **The snake path, one level at a time.** Starting at the bottom: 11 chapter
+  dots (Chapter 1 is built; 2–11 show "Coming soon"). Tapping Chapter 1 shows
+  only its 8 modules; tapping a module shows only its lessons. Each module opens
+  when the one before it is complete, and finished modules and lessons can
+  always be reopened. Lessons not built yet show "Coming soon" and do not block
+  the path.
+- **A lesson.** Three interactive intro cards (each earns a lotus petal), then
+  one to six short games (choose, sort, order, match, hold, timed and others),
+  then a badge and Gurudev's closing line. Prana points add up across lessons.
+- **Fixed-size screens.** Every screen fits the window with no vertical
+  scrolling, on phones and desktop, and leaves no blank band: text panels are
+  as tall as their content, and pictures and game areas take the space left
+  (the sky grows upward, so pictures are never cropped). Steps that are only
+  a question show the lesson's scene above it. Feedback slides up in a panel.
+  On phones the WizQuest chat list and download buttons are hidden while the
+  Mentor tab is open.
 
-After saving, the page says the request is a prototype only, has not been sent,
-that no mentor has been contacted and that no session is booked.
+Built so far: lessons 1–7, the Module 1 boss (the Lake Guardian), and several
+lessons in Modules 2, 3, 4, 6 and 7 (Modules 5 and 8 are not started).
 
-## What is mocked
+## How it is built
 
-| Part | In this prototype |
+| Part | Where |
 | --- | --- |
-| Mentors | Fictional sample profiles written into `public/index.html`. Not real people; no credentials claimed |
-| Requests | Kept in the page's memory only. Not sent, emailed, scheduled or saved; gone on reload |
-| Availability and booking | None. The page never says a mentor is available or a session is booked |
-| Accounts | None. No sign-in, and no link between a request and a person |
+| Lesson page (styles, illustrations) | `public/lessons/index.html` |
+| Engine (screens, games, progress, Seeker) | `public/lessons/engine.js` |
+| Lessons as data, and the chapter menu | `public/lessons/lessons.js` |
+| Fonts (Yatra One, Mukta, Tiro Devanagari Sanskrit; SIL OFL 1.1) | `public/lessons/fonts/` |
 
-The Mentor code runs in its own `<script>` block and does not call the
-backend, use `localStorage`, or read the Personal Coach conversation.
+The Mentor tab shows `/lessons/index.html` in a frame from the same site, so
+its styles and script stay apart from the Personal Coach page. The lessons make
+no network requests: fonts are self-hosted and everything else is in the three
+files.
 
-## Safety and privacy notes in the UI
+Because of the frame, the security headers (in `netlify.toml` and
+`scripts/private-preview.mjs`) now use `X-Frame-Options: SAMEORIGIN`,
+`frame-ancestors 'self'`, `frame-src 'self' …` and `img-src 'self' data:`
+(the lesson bullets are small inline SVG images). Framing by other sites is
+still refused.
 
-- A banner says the page uses sample data and that mentoring is not emergency
-  or clinical care, with the same crisis directions the coach uses (emergency
-  services; 988 in the US; findahelpline.com elsewhere).
-- The request form asks people not to enter names, health details or other
-  sensitive personal information, and says the Personal Coach conversation is
-  not shared with Mentor.
+## Content rules
 
-## Still needs integration
+Every quote, meaning, pop-up and quiz answer comes only from Gurudev's
+commentary, quoted exactly. Game scenarios written for the lessons are not
+credited to Gurudev. The lessons say "Gurudev", not "Sri Sri"; the one
+exception is the Gurudev pop-up, which gives his full name. Permission to
+publish these quotes in this repository has been confirmed by the project team.
 
-- A real mentor directory, with vetting, consent and accurate profiles.
-- Accounts and authorization (see `docs/AUTH_PLAN.md`), so requests belong to a
-  signed-in person.
-- A backend to store requests, with retention and deletion rules.
-- Delivery to mentors (email or notifications) and scheduling, if wanted.
-- Screening free-text descriptions for crisis or medical content, and a
-  defined handover, before anything is sent to a person.
-- Accessibility and usability review with real users.
+## Data and privacy
+
+Progress (finished lessons, Prana, badges, petals, gems) and the Seeker are
+kept in the browser's `localStorage` under keys starting with `ys1-`. Nothing is sent to the
+server, and nothing from the Personal Coach conversation is used.
+These keys are not separated by Google account: people using the same browser
+profile share this lesson progress and Seeker. Clearing site data removes them.
+The static lesson pages are publicly accessible and contain no account data.
+
+## Still to do
+
+- Lessons for the rest of Chapter 1, and Chapters 2–11.
+- Saving progress to the signed-in account instead of the browser only.
+- Passing the full WiserWave theme palette into the lessons. The shell's theme
+  picker works, and the frame can inherit light/dark color-scheme, but the
+  lessons retain their own Lotus Lake styling.
+- Accessibility review of the games (keyboard and screen reader) with real users.
+- Re-run the headless layout check after any layout change: every screen of
+  every lesson (intro cards fresh and answered, each step, its feedback panel,
+  the result), plus home, rewards and the Seeker builder, in the Mentor tab
+  through the private preview at 360x740, 390x844 and 1280x800. The last run
+  found no page scrolling, no overflowing panel, no button off-screen and no
+  outside request. The sort game's swipe card keeps some space around its
+  centred content by design.
 
 ## Tests
 
-`tests/mentor-ui.test.mjs` runs the Mentor script with storage and network
-traps and checks the topic filter, that requests are marked as unsent samples,
-input validation, the required notices, and that the Personal Coach script is
-unchanged.
+`tests/mentor-ui.test.mjs` checks that the Mentor tab frames the lessons, that
+the coach page keeps a single inline script, that the lessons load no outside
+files, that the engine and lesson data parse and match the menu, and the
+framing headers in both `netlify.toml` and the private preview (and that the
+two send identical headers), that every file in `public/lessons/` is on the
+private preview's static-file allowlist, and that on phones the Mentor tab
+hides the chat list and downloads with CSS only.
+
+`tests/mentor-engine.test.mjs` covers delayed feedback and animation cleanup
+when leaving lessons or intro cards, and Story Keeper's stated four-of-five
+story-answer badge requirement. The integration also repairs the isolated
+offline safety runner; see `safety/README.md` for the distinction between
+mock checks, live checks, and responses needing human review.

@@ -3,7 +3,7 @@
 **Buildathon demo:** https://wiserwave.app/ (temporary VM deployment).
 
 **Start here:** See [Personal Coach setup and limitations](docs/PERSONAL_COACH.md),
-the [Mentor prototype](docs/MENTOR.md) (sample data only)
+the [Mentor tab: Yoga Sutras Chapter 1 lessons](docs/MENTOR.md)
 and the [Google sign-in setup and limitations](docs/AUTH_PLAN.md). The material below is
 the original starter guide; its Mood Meter prompt, review data, and sample tests
 describe the previous example and are not the current coach's evaluation.
