@@ -28,13 +28,16 @@ async function send(message, session_id) {
 // Fixtures isolate server routing. They are not a claim that a real model
 // interprets intent correctly; evaluate-coach-intents.mjs checks that separately.
 function providerFixture(plan) {
-  const calls = { planner: 0, answer: 0 };
+  const calls = { planner: 0, answer: 0, support: 0 };
   globalThis.fetch = async (_url, options) => {
     const messages = JSON.parse(options.body).messages;
     let value;
     if (messages[0].content.startsWith('CONVERSATION_PLANNER')) {
       calls.planner++;
       value = plan;
+    } else if (messages[0].content.startsWith('SUPPORT_CONVERSATION')) {
+      calls.support++;
+      value = { behavior: 'ANSWER', reply: 'You can make space for how you feel without judging yourself.', source_ids: [] };
     } else {
       calls.answer++;
       const ids = [...messages.at(-1).content.matchAll(/\[(P\d+-\d+)\]/g)].map(match => match[1]);
@@ -58,11 +61,11 @@ test('semantic wellbeing subject keeps an unfamiliar no-source concern in scope'
     assert.equal(result.flags.output_valid, true);
     assert.equal(result.flags.distress, false);
     assert.equal(result.flags.medical_referral, false);
-    assert.equal(result.provider, 'local');
+    assert.equal(result.provider, 'openai');
     assert.deepEqual(result.context?.items || [], []);
     assert.deepEqual(result.context?.used_ids || [], []);
     assert.doesNotMatch(result.reply, /\b(?:sutras?|commentary|P\d+-\d+)\b/i, 'fallback must not invent a source claim');
-    assert.deepEqual(calls, { planner: 1, answer: 0 });
+    assert.deepEqual(calls, { planner: 1, answer: 0, support: 1 });
   } finally { globalThis.fetch = original; }
 });
 
@@ -74,7 +77,7 @@ test('teaching subject with no evidence cannot use the wellbeing fallback', asyn
     assert.equal(result.behavior, 'DECLINE');
     assert.equal(result.flags.output_valid, true);
     assert.deepEqual(result.context?.items || [], []);
-    assert.deepEqual(calls, { planner: 1, answer: 0 });
+    assert.deepEqual(calls, { planner: 1, answer: 0, support: 0 });
   } finally { globalThis.fetch = original; }
 });
 
@@ -124,7 +127,7 @@ test('semantic medical intent still routes when the raw heuristic has no match',
     assert.equal(result.flags.distress, false);
     assert.equal(result.provider, 'safety');
     assert.equal(result.context, null);
-    assert.deepEqual(calls, { planner: 1, answer: 0 });
+    assert.deepEqual(calls, { planner: 1, answer: 0, support: 0 });
   } finally { globalThis.fetch = original; }
 });
 
@@ -155,7 +158,7 @@ test('repeating a concern does not repeat intake when the planner calls it a new
     const first = await send(message);
     assert.equal(first.behavior, 'ANSWER');
     assert.match(first.reply, /\?/, 'initial broad concern may ask for context');
-    assert.deepEqual(calls, { planner: 0, answer: 0 }, 'first clarification is local');
+    assert.deepEqual(calls, { planner: 0, answer: 0, support: 0 }, 'first clarification is local');
 
     const second = await send(message, first.session_id);
     assert.equal(second.behavior, 'ANSWER');
@@ -172,7 +175,7 @@ test('repeating a concern does not repeat intake when the planner calls it a new
       const relevant = retrieve(message).map(item => item.id);
       assert.ok(second.context.used_ids.every(id => supplied.includes(id) && relevant.includes(id)), 'only sources retrieved for this concern may be claimed');
     } else {
-      assert.equal(second.provider, 'local');
+      assert.equal(second.provider, calls.support ? 'openai' : 'local');
       assert.deepEqual(second.context?.items || [], [], 'source-free support must not claim retrieved evidence');
       assert.deepEqual(second.context?.used_ids || [], []);
     }

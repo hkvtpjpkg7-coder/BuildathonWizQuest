@@ -94,6 +94,11 @@ const DISTRESS = [
 // signal for conservative handling. The original text still goes to the
 // semantic planner; this is not a safety affirmation or a crisis-state reset.
 const FINAL_SELF_HARM_DENIAL = /(^|[.!?]\s+)i\s+(?:do not|don't)\s+want to\s+(?:hurt|harm|kill)\s+myself[.!]?\s*$/i;
+// A filtered denial still needs semantic assessment of the whole original
+// message. Callers must not let source requests or local intake bypass it.
+export const requiresSafetyInterpretation = (text) => FINAL_SELF_HARM_DENIAL.test(
+  String(text ?? '').replace(/[’‘]/g, "'").replace(/\s+/g, ' '),
+);
 const hasDistressSignal = (text) => {
   const scan = text.replace(FINAL_SELF_HARM_DENIAL, '$1');
   return DISTRESS.some((re) => re.test(scan));

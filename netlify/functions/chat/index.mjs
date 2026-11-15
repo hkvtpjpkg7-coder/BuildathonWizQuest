@@ -28,7 +28,7 @@
 
 import { loadSession, saveSession, newSession, isValidId, storageKind, EVALUATION_OWNER } from "../../lib/store.mjs";
 import {
-  validateMessage, redactPII, looksLikeInjection, showsDistress, explicitlySafe, parseModelOutput,
+  validateMessage, redactPII, looksLikeInjection, showsDistress, explicitlySafe, requiresSafetyInterpretation, parseModelOutput,
   SUPPORT_LINE, MAX_TURNS_PER_SESSION,
 } from "../../lib/checks.mjs";
 import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
@@ -37,6 +37,7 @@ import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
 import { clarificationFor, isPersonalConcern, isClarificationContinuation, requestsSource, declinesToElaborate, supportiveFallback, isPersonalSleepConcern, sleepSupport } from "../../lib/clarify.mjs";
 import { authenticateRequest, authFailure } from "../../lib/auth.mjs";
 import { evaluationSettings, createEvaluationLimiter } from "../../lib/evaluation.mjs";
+import { supportConversationTurn } from "../../lib/support.mjs";
 import { planConversationTurn, conversationHistory } from "../../lib/conversation.mjs";
 
 // -----------------------------------------------------------------------------
@@ -400,18 +401,19 @@ export default async (req, context) => {
   const sourceRequested = !flags.distress && !medicalKind && requestsSource(redacted.text);
   const previousClarification = focus.assistant?.kind === 'clarification' ? focus.assistant.clarification_topic : null;
   const privacyPreference = previousClarification && previousClarification !== 'greeting' && declinesToElaborate(redacted.text);
-  let clarification = !lastAssistant && !flags.distress && !medicalKind && !sourceRequested ? clarificationFor(redacted.text, previousClarification) : null;
+  const safetyInterpretationNeeded = requiresSafetyInterpretation(redacted.text);
+  let clarification = !safetyInterpretationNeeded && !lastAssistant && !flags.distress && !medicalKind && !sourceRequested ? clarificationFor(redacted.text, previousClarification) : null;
   // Interpret the conversational act before presenting any retrieved text.
   // The planner sees only bounded, redacted conversation, never source chunks.
   let plan = null;
-  if (!flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference) {
+  if (!flags.distress && (safetyInterpretationNeeded || (!medicalKind && !sourceRequested && !clarification && !privacyPreference))) {
     plan = await planConversationTurn(redacted.text, session.messages);
     // An explicit topic change must never borrow the previous answer's sources.
     if (plan.intent === 'continue' && /\b(?:new topic|different topic|change (?:the )?subject|unrelated)\b/i.test(redacted.text)) {
       plan = { ...plan, intent: 'new_topic', query: redacted.text, reuse_previous: false };
     }
     flags.output_valid = plan.valid;
-    if (plan.intent === 'care') flags.distress = true;
+    if (plan.intent === 'care' || (safetyInterpretationNeeded && !plan.valid)) flags.distress = true;
     if (plan.intent === 'medical') { medicalKind = 'treatment'; flags.medical_referral = true; }
     // Medical intent is decided from original dialogue (raw guard or planner),
     // never by treating a generated search paraphrase as a new user request.
@@ -428,7 +430,7 @@ export default async (req, context) => {
   const sleepSupportNeeded = !flags.distress && !medicalKind && !sourceRequested && !clarification && !privacyPreference && !conversationalReply &&
     (isPersonalSleepConcern(plan?.query || redacted.text) || sleepContinuation);
   const followsPrevious = plan?.intent === 'continue';
-  if (sourceRequested) {
+  if (sourceRequested && !flags.distress && !medicalKind) {
     // Only restore IDs verified for the immediately preceding assistant reply,
     // not every retrieved candidate or a different prior conversation turn.
     // Older saved replies predate context_used_ids; recover their explicit
@@ -508,6 +510,20 @@ export default async (req, context) => {
       // This is ordinary human support, not a claim about the source. Avoid an
       // endless string of questions when someone declines to share details.
       reply = supportiveFallback(plan?.query || redacted.text, followsPrevious ? focus.user?.content : '');
+      extra = null;
+      if (plan?.subject === 'wellbeing' && provider() !== 'mock') {
+        const support = await supportConversationTurn(redacted.text, session.messages);
+        usage = { input_tokens: (usage.input_tokens || 0) + (support.usage.input_tokens || 0), output_tokens: (usage.output_tokens || 0) + (support.usage.output_tokens || 0) };
+        if (support.crisis) {
+          behavior = 'CARE'; reply = CRISIS_REPLY;
+          modelFlaggedCrisis = true; flags.distress = true;
+        } else if (support.reply) {
+          reply = support.reply;
+          localReply = false; // Apply the normal medical/dietary output guards.
+        } else {
+          flags.output_valid = false;
+        }
+      }
     } else {
       behavior = "DECLINE";
       reply = "I'm here to help you reflect on everyday wellbeing and personal concerns. What would you like to explore?";

@@ -74,7 +74,7 @@ test('loneliness follow-up with no relevant teaching stays supportive rather tha
     const second = await send('I miss my family', first.body.session_id);
     assert.equal(second.body.behavior, 'ANSWER');
     assert.doesNotMatch(second.body.reply, /pdf|passage|\[P\d+-\d+\]|what feels most important/i);
-    assert.equal(second.body.context.items.length, 0);
+    assert.equal(second.body.context, null, "ordinary support has no claimed source context");
     const repeat = await send('I feel lonely');
     const privacy = await send("I don't want to share more", repeat.body.session_id);
     assert.equal(privacy.body.behavior, 'ANSWER');
