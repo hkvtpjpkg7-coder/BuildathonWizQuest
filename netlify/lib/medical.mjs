@@ -7,6 +7,16 @@ const CHANGE = /\b(?:start|begin|stop|quit|discontinue|withdraw|change|switch|re
 const REQUEST = /\b(?:should|shall|can|could|may|would|safe|okay|ok|help|advi[sc]e|recommend|need|want|plan|thinking|how|what|whether|instead)\b|\?/i;
 const INTENT_TO_CHANGE = new RegExp(String.raw`\b(?:should|shall|can|could|may|would|safe|okay|ok|help|advi[sc]e|recommend|need|want|plan|thinking|how|what|whether|instead)\b.{0,70}${CHANGE.source}`, 'i');
 const DIAGNOSIS = /\b(?:diagnos(?:e|is|tic|ing)|what(?:'s| is) wrong with me|(?:do|could|might) i have|am i suffering from|is this (?:a sign|a symptom) of)\b/i;
+// Require explicit treatment/cure wording joined to a named condition. Merely
+// feeling nervous or mentioning a condition while asking about reflection is
+// not a request for treatment. Keep the gap grammatical rather than accepting
+// arbitrary text between "treat" and a condition in a later sentence.
+const CONDITION = '(?:anxiety(?: disorder)?|depression|depressive disorder|insomnia|panic disorder|bipolar(?: disorder)?|ptsd|ocd|adhd|cancer|diabetes|infection|illness|disease)';
+const CONDITION_PREFIX = '(?:(?:my|your|the|a|an|their|his|her|our|diagnosed|clinical|chronic|severe|mild|generalized|major|persistent)\\s+){0,5}';
+const EXPLICIT_TREATMENT = new RegExp(
+  '\\b(?:(?:cur(?:e[sd]?|ing)|treat(?:s|ing)?|heal(?:s|ing)?|revers(?:e[sd]?|ing))\\s+' + CONDITION_PREFIX + CONDITION +
+  '|(?:cures?|treatments?|remed(?:y|ies)|therap(?:y|ies))\\s+for\\s+' + CONDITION_PREFIX + CONDITION +
+  '|' + CONDITION + '\\s+(?:(?:can|could|may|will|be)\\s+){0,3}(?:cured|treated|healed|reversed))\\b', 'i');
 
 /** Return only the type of explicit medical request; no inference of illness. */
 export function medicalReferral(message, previousUserMessage = '') {
@@ -14,6 +24,7 @@ export function medicalReferral(message, previousUserMessage = '') {
   const previous = String(previousUserMessage || '');
   if (!text) return null;
   if (DIAGNOSIS.test(text)) return 'diagnosis';
+  if (EXPLICIT_TREATMENT.test(text)) return 'treatment';
   // Mentioning an existing prescription alongside an unrelated wish ("I take
   // medication and want to understand meditation") is not a dosage request.
   const directMedicationQuestion = MEDICINE.test(text) && INTENT_TO_CHANGE.test(text);
@@ -27,5 +38,6 @@ export function medicalReferral(message, previousUserMessage = '') {
 
 export function medicalReferralReply(kind) {
   if (kind === 'diagnosis') return "I can't diagnose symptoms. A qualified healthcare professional can assess what's going on and discuss appropriate next steps with you.";
+  if (kind === 'treatment') return "I can't advise on treatment or medication. A qualified healthcare professional can discuss what is appropriate for your situation.";
   return "I can't advise you to start, stop, replace, or change a medication. Please speak with your prescriber or pharmacist before making a change; they can advise you based on your situation.";
 }
