@@ -276,6 +276,201 @@ button:disabled{cursor:default}
 .sn.now .dot{background:var(--seekt);border-color:var(--seek);box-shadow:0 0 0 0 rgba(242,163,58,.55);animation:snp 1.8s ease-out infinite}
 @keyframes snp{to{box-shadow:0 0 0 12px rgba(242,163,58,0)}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ===== fixed-size screens: the app fills the window and nothing needs vertical scrolling =====
+   header band on top, one stage below; each screen fits the stage; pictures and game rooms
+   shrink to the space left; step feedback is a sheet that slides up over the stage */
+html,body{height:100%}
+body{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.top{flex:none;padding:10px max(14px,calc(50vw - 278px)) 12px}
+h1{font-size:clamp(22px,5.4vw,30px)}
+.sub{font-size:14px;margin-top:2px}
+.pts{font-size:15px;padding:4px 12px}
+.wrap{flex:1;min-height:0;width:100%;max-width:580px;margin:0 auto;padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.wrap>.card,.screen>.card{margin:0}
+.screen{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+.wrap>.card:only-child,.wrap>.card.screen{flex:1;min-height:0;display:flex;flex-direction:column}
+.card>.body{flex:1;min-height:0;display:flex;flex-direction:column;padding:14px 16px 14px;overflow:auto}
+.card>.body>.row:last-child{margin-top:auto;padding-top:10px}
+h2{font-size:clamp(21px,5.6vw,26px);margin:0 0 8px}
+.lead{font-size:16px;margin:0 0 8px}
+.lines{font-size:16px}
+/* intro cards */
+.sceneBox{flex:0 1 auto;min-height:0}
+.sceneBox .scene{aspect-ratio:auto;height:min(26dvh,calc((100vw - 24px)*.5625),320px);width:100%}
+#cb{flex:1;min-height:0;overflow:auto}
+/* steps: compact title card, then the room, then controls */
+.stephead>.body{flex:none;padding:10px 14px 10px;overflow:visible}
+.stephead h2{margin-bottom:2px}
+.stephead .yogiRow{margin-bottom:6px}
+.hud,.gemrow{flex:none;margin:0}
+#st{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#st:empty{display:none}
+#st>*{flex:none}
+#st>.room,#st>#rm{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#rm>.room{flex:1}
+#st>.card:last-child{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+#st>.card:last-child>.body{overflow:auto}
+#st:has(>.room)~#ui{flex:none}
+.room,.room.short{height:auto;flex:1;min-height:170px;margin:0}
+#ui{flex:0 1 auto;min-height:0;overflow:auto}
+#st:empty+#ui{flex:1 1 auto}
+#ui>.card{margin:0 0 8px}
+/* feedback sheet */
+.sheetbg{position:fixed;inset:0;background:rgba(14,42,43,.35);z-index:60}
+.card.sheet{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(580px,100%);max-height:72dvh;z-index:61;margin:0!important;border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:sheetUp .25s ease-out}
+.sheet>.body{overflow:auto}
+@keyframes sheetUp{from{transform:translate(-50%,40px);opacity:0}}
+/* result */
+.res .scene{aspect-ratio:auto;height:min(22dvh,200px)}
+.res .lines{flex:1;min-height:0;overflow:auto;margin-bottom:0}
+.res .badge{margin:8px 0}
+.res .big{font-size:clamp(34px,9vw,48px)}
+/* home: level meter, reward tiles, the path */
+.lvl{flex:none;display:flex;gap:12px;align-items:center;padding:10px 14px}
+.lvl-av{flex:none;width:62px;min-height:0;padding:2px 0 0;background:var(--seekt);border-radius:16px;color:var(--seekd);display:flex;flex-direction:column;align-items:center;font-size:12px}
+.lvl-av svg{width:54px;height:54px}
+.lvl-main{flex:1;min-width:0}
+.lvl-top{display:flex;align-items:center;gap:8px;font-size:17px}
+.tipq{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--tealt);color:light-dark(#0f5c5e,#bfe3dd);font-size:13px;font-weight:700;cursor:pointer}
+.meter{height:12px;border-radius:999px;background:var(--line);overflow:hidden;margin:6px 0 4px}
+.meter i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--lotus),var(--seek))}
+.lvl-sub{font-size:13px;color:var(--soft);font-weight:600}
+.ladder{display:grid;grid-template-columns:repeat(9,1fr);gap:3px;margin-top:6px}
+.ladder span{height:5px;border-radius:3px;background:var(--line)}.ladder .past{background:var(--seek)}.ladder .cur{background:var(--lotus)}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--soft);margin-top:2px}
+.stats{flex:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.stat{min-height:0;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:0;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:16px;font-weight:600;line-height:1.15}
+.stat .ic{height:22px;display:grid;place-items:center}.stat .pr{color:var(--seek);font-size:20px}
+.stat b{font-size:17px}.stat>span:last-child{font-size:12px;color:var(--soft)}
+.pathc{flex:1;min-height:0;display:flex;flex-direction:column;padding:10px 12px 6px}
+.path-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:15px}
+.path-head b{font-size:16px}.path-head span{color:var(--soft);font-size:13px;margin-left:auto}
+.back{min-height:34px;width:34px;padding:0;border-radius:50%;background:var(--tealt);color:light-dark(#0f5c5e,#bfe3dd);font-size:22px;line-height:1}
+.pathc .sn-note{min-height:18px;margin:2px 0 0;font-size:13px}
+.pathc .snake{flex:1;min-height:0;width:100%;max-width:none;height:auto!important}
+.sn.tight .lab{font-size:14px}
+/* rewards page */
+.rw h3{font:400 19px "Yatra One",serif;margin:4px 0 6px}.rw h3 small{font:600 13px Mukta,sans-serif;color:var(--soft)}
+.shelf{list-style:none;margin:0 0 8px;padding:0;display:flex;flex-wrap:wrap;gap:5px}
+.shelf li{display:flex;align-items:center;gap:4px;padding:2px 9px 2px 3px;border-radius:999px;border:2px solid var(--seek);background:var(--seekt);font-size:13px;font-weight:700}
+.shelf li.no{border:2px dashed var(--line);background:none;color:var(--soft)}.shelf li.no svg{filter:grayscale(1);opacity:.4}
+.hint{color:var(--soft);font-size:14px;margin:0}
+/* avatar builder */
+.avs .body{gap:2px}
+.av-top{display:flex;gap:14px;align-items:center;margin-bottom:4px}
+.av-top .prev{flex:none;width:118px;height:112px;border-radius:20px;background:var(--seekt);display:grid;place-items:center}
+.av-top .prev svg{width:108px;height:104px}
+.av-side{flex:1;min-width:0}
+.lbl{margin:4px 0 4px;font-size:14px}.lbl small{font-weight:600;color:var(--soft)}
+.avs .sw{margin-bottom:4px;gap:8px}.avs .sw button{width:38px;height:38px;min-height:38px}
+.avs .sw.hs button{width:auto;height:38px;padding:0 12px;border-radius:12px;font-size:15px}
+.dotc{display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #d8cfc0;margin-right:6px;vertical-align:-1px}
+.faces{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.opt-face{min-height:0;padding:3px 2px 2px;display:flex;flex-direction:column;align-items:center;gap:0;background:var(--seekt);color:var(--ink);border:3px solid transparent;border-radius:14px;font-size:12px;font-weight:600;line-height:1.1}
+.opt-face svg{width:40px;height:40px}
+.opt-face[aria-pressed=true]{border-color:var(--seek);background:var(--panel)}
+/* short screens: tighten type and spacing */
+@media(max-height:760px){body{font-size:16px}.card>.body{padding:10px 14px}.lead,.lines{font-size:15px}.top{padding-top:8px;padding-bottom:8px}.sub{display:none}.stephead .lead{font-size:14px}.room{min-height:150px}.opt-face svg{width:34px;height:34px}.av-top .prev{height:96px}}
+@media(max-width:420px){.faces{grid-template-columns:repeat(6,minmax(0,1fr))}.lvl{gap:10px;padding:8px 10px}}
+/* second pass from the fit checks */
+.card{position:relative}
+.stephead{flex:none}
+.stephead h2{font-size:clamp(19px,5vw,23px)}
+.stephead .lead{font-size:15px;line-height:1.4}
+/* intro cards: question first; once answered the picture becomes a strip and only the chosen option stays */
+.sceneBox .scene{transition:height .3s ease}
+.answered .sceneBox .scene{height:58px}
+.answered .sceneBox .petals{top:12px;transform:scale(.88);transform-origin:left top}
+.answered #cb>.lead{display:none}
+.answered .choices .choice:not(.picked){display:none}
+.answered .choices{margin-bottom:0}
+.answered .flip .f small{display:none}
+#cb .got{position:absolute;right:12px;top:10px;z-index:4;margin:0;background:var(--panel);box-shadow:0 4px 14px rgba(0,0,0,.12);border-radius:999px;padding:4px 12px 4px 6px;font-size:14px;animation:gotFade 2.6s ease forwards}
+@keyframes gotFade{0%,75%{opacity:1}100%{opacity:0;visibility:hidden}}
+.flips{grid-template-columns:repeat(var(--n),minmax(0,1fr))!important;gap:8px!important}
+.flip{min-height:96px!important}
+.flip .b{font-size:14px!important;line-height:1.35!important;padding:8px!important}
+.flip .f{font-size:15px!important;padding:8px 4px!important}
+.quote{font-size:17px;line-height:1.45}
+.payoff .quote{font-size:18px!important}
+.reveal{margin-top:8px!important}
+.choice{min-height:48px;padding:8px 12px;font-size:16px}
+.choices{gap:6px}
+/* result: step scores as chips */
+.scores{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.scores span{font-size:13px;background:var(--tealt);border-radius:999px;padding:2px 10px;color:var(--ink)}
+.scores b{color:var(--seekd)}
+.res .scene{height:min(18dvh,170px)}
+.res .lines{font-size:15px}
+@media(max-width:440px){.flips{--n:2!important}.flip:nth-child(3):last-child{grid-column:1/-1}}
+@media(max-height:760px){.answered .sceneBox .scene{height:48px}.flip{min-height:80px!important}.quote{font-size:16px}}
+/* third pass: compact game parts so each step fits */
+.q{font-size:17px;margin:0 0 8px;line-height:1.35}
+.clue{font-size:14px}
+.opt{min-height:44px;padding:7px 12px;margin-bottom:6px;font-size:16px;line-height:1.3}
+.optgrid,.memgrid{gap:6px}.memgrid .opt{min-height:48px}
+.prog{margin:0 0 6px}
+.window,.skybox{margin-bottom:6px}
+.window svg,.skybox svg{aspect-ratio:auto;height:min(22dvh,210px)}
+.cloud{font-size:16px;padding:12px 16px 14px;top:5%}
+.pane{padding:12px}.msg{font-size:16px}
+#vis .scene{height:min(18dvh,170px)}
+.hap{padding:8px 12px 10px}.hap p{font-size:16px}
+/* sort: the card stretches into the space left */
+#st>.card.stage{flex:1 1 auto;min-height:150px;height:auto}
+.stage{height:auto}
+.bins{margin:0 0 6px;gap:6px}.bin{padding:6px 8px}.bin small{font-size:12px}
+.swc{padding:12px 14px}.who{width:64px;height:64px;margin-bottom:6px}.swc q{font-size:17px}.swc .small{font-size:12px;margin:4px 0 0}
+.two{margin-top:6px}.two button{min-height:44px}
+/* order and match */
+.slots{gap:6px;margin-bottom:8px}.tiles{gap:6px}.tile{min-height:52px}
+.match>div{gap:6px}.mw,.mm{min-height:42px;padding:5px 10px;font-size:15px}.mm{font-size:14px}
+/* days */
+.meters{gap:6px;margin:0 0 6px}.meters>div{padding:5px 8px}.meters small{font-size:12px}
+/* timed / tapfast */
+.wake{min-height:52px;font-size:18px}
+/* flips grow to fit the opened quote */
+.flip.open .b{position:relative;inset:auto;min-height:100%}
+.flip.open .f{position:absolute}
+.flip .b{overflow:visible!important}
+/* feedback sheet text */
+.sheet{max-height:86dvh}
+.sheet .fbk{padding:10px 12px;margin-top:0}
+.sheet .lines{font-size:15px;margin-bottom:6px}
+.sheet .fbk .v{font-size:17px}
+.sheet .fbk+.fbk{margin-top:8px}
+@media(max-height:760px){.opt{min-height:40px;padding:6px 10px;font-size:15px}.window svg,.skybox svg{height:min(20dvh,180px)}.q{font-size:16px}.who{width:54px;height:54px}.swc q{font-size:16px}.tile{min-height:46px}}
+/* fourth pass: one-line header, slimmer meters */
+.top header{gap:8px}
+.top header>div:first-child{min-width:0;flex:1}
+h1{font-size:clamp(19px,5vw,26px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+.sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px}
+.homeb{min-height:34px;font-size:14px;padding:0 10px}
+.pts{font-size:14px;padding:3px 10px}
+.optgrid .opt{min-height:44px;padding:6px 10px;font-size:15px;line-height:1.25}
+.optgrid .opt svg{width:24px;height:24px}
+.meters>div{padding:4px 8px}.meters span{font-size:12px}.meters span svg{width:16px;height:16px}.mt{margin:3px 0 1px;height:6px}
+#rm .room{min-height:120px}
+@media(max-height:760px){.meters small{display:none}}
+/* fifth pass: sort card content always fits; last tall screens */
+#st>.card.stage{min-height:200px}
+.who{width:auto;height:min(64px,26%);aspect-ratio:1;flex:none}
+.who svg{width:100%;height:100%}
+.swc{justify-content:center;gap:2px}
+@media(max-height:900px){.swc .small{display:none}}
+#pk .mini{height:118px!important;margin-top:6px!important}
+#pk .relive{width:104px!important;height:104px!important;font-size:13px}
+@media(max-height:900px){.answered .yogiRow{display:none}}
+@media(max-height:760px){.res .scene{height:12dvh}#rm .room{min-height:100px}.card>.body{padding:9px 12px}}
+/* sixth pass */
+#rm .room{min-height:96px}
+@media(max-height:900px){.meters small{display:none}}
+@media(max-height:760px){.memgrid .opt{min-height:38px;font-size:14px;padding:4px 8px}#pk .mini{height:92px!important}#pk .relive{width:84px!important;height:84px!important}#cb .mini{height:170px}}
+.memgrid .opt{min-height:44px}
+@media(max-height:760px){.flip{min-height:70px!important}.payoff .quote{font-size:16px!important}#ui .opt{margin-bottom:4px}}
+.rew>.card.rw{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.rw h3{margin:2px 0 4px}.shelf{margin-bottom:6px}
+@media(max-height:760px){.rew .ladder,.rew .scale{display:none}.shelf li{font-size:12px}}
 </style>
 </head>
 <body>

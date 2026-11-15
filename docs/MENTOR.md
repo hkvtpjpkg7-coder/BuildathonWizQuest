@@ -6,16 +6,29 @@ earlier sample "find a mentor" prototype.
 
 ## What the learner sees
 
-- **Their Seeker.** On the first visit they pick a character, a skin tone (one
-  of five) and a saffron or white robe. The skin tone is chosen only once;
-  "Change Seeker" later offers character and robe only.
-- **The snake path.** Starting at the bottom: 11 chapter dots (Chapter 1 is
-  built; 2–11 show "Coming soon"). Chapter 1 opens into its 8 modules, and a
-  module opens into its lessons. Each dot opens when the one before it is
-  complete. Lessons not built yet show "Coming soon" and do not block the path.
+- **Their Seeker.** On the first visit they build a Seeker: one of five skin
+  tones (chosen once), six hair styles, four beard styles (none, stubble, short,
+  full), glasses (none, round, square) and a saffron or white robe. The Seeker
+  sits cross-legged in the avatar. "Change Seeker" later offers everything but
+  the skin tone.
+- **Level and rewards on the home screen.** A Prana meter shows the Seeker's
+  level on a beginner-to-expert scale of nine: Seed, Sprout, Roots, Stem,
+  Floating Leaf, Bud, Opening Bud, Blossom and Full Lotus (at 0, 50, 150, 300,
+  500, 800, 1200, 1800 and 2600 Prana). Four tiles show Prana, badges, support
+  gems and lotus petals; tapping one opens a rewards page with every badge.
+- **The snake path, one level at a time.** Starting at the bottom: 11 chapter
+  dots (Chapter 1 is built; 2–11 show "Coming soon"). Tapping Chapter 1 shows
+  only its 8 modules; tapping a module shows only its lessons. Each module opens
+  when the one before it is complete, and finished modules and lessons can
+  always be reopened. Lessons not built yet show "Coming soon" and do not block
+  the path.
 - **A lesson.** Three interactive intro cards (each earns a lotus petal), then
   one to six short games (choose, sort, order, match, hold, timed and others),
   then a badge and Gurudev's closing line. Prana points add up across lessons.
+- **Fixed-size screens.** Every screen fits the window with no vertical
+  scrolling, on phones and desktop: pictures and game areas shrink to the space
+  left, and feedback slides up in a panel. On phones the WizQuest chat list and
+  download buttons are hidden while the Mentor tab is open.
 
 Built so far: lessons 1–7, the Module 1 boss (the Lake Guardian), and several
 lessons in Modules 2, 3, 4, 6 and 7 (Modules 5 and 8 are not started).
@@ -50,8 +63,8 @@ publish these quotes in this repository has been confirmed by the project team.
 
 ## Data and privacy
 
-Progress (finished lessons, Prana, badges) and the Seeker are kept in the
-browser's `localStorage` under keys starting with `ys1-`. Nothing is sent to the
+Progress (finished lessons, Prana, badges, petals, gems) and the Seeker are
+kept in the browser's `localStorage` under keys starting with `ys1-`. Nothing is sent to the
 server, and nothing from the Personal Coach conversation is used.
 
 ## Still to do

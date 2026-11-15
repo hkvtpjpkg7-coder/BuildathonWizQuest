@@ -281,6 +281,13 @@
       #mentor, #tests { padding: 18px 14px; }
       .auth-card { padding: 27px 24px; }
     }
+    /* Mentor on phones: the lessons fill the screen (no chat list, no chat downloads) */
+    @media (max-width: 760px) {
+      .app:has(#view-mentor.on) { grid-template-rows: minmax(0, 1fr); }
+      .app:has(#view-mentor.on) > aside,
+      .app:has(#view-mentor.on) #dl-json,
+      .app:has(#view-mentor.on) #dl-csv { display: none; }
+    }
     @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
   </style>
 </head>
