@@ -71,10 +71,11 @@ source-ID validation. They use simulated provider responses; they do not prove
 the accuracy, clinical safety, or quality of a live cloud model. The three
 starter CSV presets remain legacy sentiment/review examples, not coach evals.
 
-The starter's distress detector is incomplete: for example, it does not match
-the phrase "I want to end it" even though it matches "end it all". A model may
-still respond with care, but the dedicated crisis fallback is not guaranteed
-for that input. Improve and evaluate this before relying on the app for safety.
+The crisis detector includes the phrase "I want to end it" and related
+patterns, and routes detected cases to a support response without a model call.
+It is still heuristic: it can miss untested expressions or misinterpret context.
+See `safety/README.md` and `docs/safety_report.md` for the evaluation and its
+limits. The coach must not be relied on as crisis care.
 
 The starter can store conversations in Netlify Blobs. It has no user login or
 ownership enforcement: anyone with a conversation ID may be able to retrieve

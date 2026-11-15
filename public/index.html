@@ -248,6 +248,7 @@
   const ACTIVE_SESSION_KEY = "wizquest_active_session";
   let sessions = store.get(SESSION_KEY, []);
   let sessionId = store.get(ACTIVE_SESSION_KEY, null);
+  let ephemeralSession = false;
   let sending = false;
   let loadingSession = false;
   const thread = $("thread"), input = $("input");
@@ -275,6 +276,7 @@
       if (data.flags?.pii_redacted?.length) tags.push(el("span", { className: "tag", textContent: "PII redacted: " + data.flags.pii_redacted.join(", ") }));
       if (data.flags?.injection_suspected) tags.push(el("span", { className: "tag", textContent: "injection suspected" }));
       if (data.flags && data.flags.output_valid === false) tags.push(el("span", { className: "tag", textContent: "model ignored format" }));
+      if (data.storage === "not_saved") tags.push(el("span", { className: "tag", textContent: "This exchange was not saved" }));
       // Show the specific passages sent to the model. Reopened chats retain IDs
       // when the full source excerpts were not stored with the conversation.
       // Live replies carry data.context; reopened chats carry context_type / context_ids.
@@ -318,8 +320,15 @@
       const d = await sendMessage(sessionId, text);  // 2
       pending.remove();
       addBubble("assistant", d.reply, d);            // 3
-      if (!sessionId) {                              // 4: a new chat was created on the server
+      // Keep an unsaved safety-session ID only in memory so follow-ups can
+      // reuse its best-effort crisis marker, without creating a sidebar entry.
+      if (d.storage === "not_saved") {
+        if (!sessionId && d.session_id) { sessionId = d.session_id; ephemeralSession = true; }
+        return;
+      }
+      if (!sessionId || ephemeralSession) {           // 4: a new chat was created on the server
         sessionId = d.session_id;
+        ephemeralSession = false;
         store.set(ACTIVE_SESSION_KEY, sessionId);
         sessions.unshift({ id: sessionId, title: text.slice(0, 60), updated: Date.now() });
       } else {                                       // existing chat: move it to the top of the list
@@ -351,7 +360,7 @@
   function renderSessions() {
     $("sessions").replaceChildren(...sessions.map((s) => el("li", {},
       el("button", { className: s.id === sessionId ? "active" : "", textContent: s.title || "New chat", title: s.title, disabled: sending || loadingSession, onclick: () => openSession(s.id) }))));
-    $("dl-json").disabled = $("dl-csv").disabled = !sessionId;
+    $("dl-json").disabled = $("dl-csv").disabled = !sessionId || ephemeralSession;
   }
 
   // Load a saved chat from the server and redraw all its messages.
@@ -361,6 +370,7 @@
     loadingSession = true;
     $("new-chat").disabled = $("send").disabled = true;
     sessionId = id;
+    ephemeralSession = false;
     store.set(ACTIVE_SESSION_KEY, id);
     renderSessions();
     thread.replaceChildren(el("div", { className: "empty", textContent: "Loading…" }));
@@ -388,7 +398,7 @@
   }
 
   // "+ New chat": clear the screen. The server creates the chat when the first message is sent.
-  $("new-chat").addEventListener("click", () => { sessionId = null; store.set(ACTIVE_SESSION_KEY, null); renderSessions(); renderEmpty(); input.focus(); });
+  $("new-chat").addEventListener("click", () => { sessionId = null; ephemeralSession = false; store.set(ACTIVE_SESSION_KEY, null); renderSessions(); renderEmpty(); input.focus(); });
 
   // ---------------------------------------------------------------------------
   // E. Chat: download the current chat (FLOW 3)

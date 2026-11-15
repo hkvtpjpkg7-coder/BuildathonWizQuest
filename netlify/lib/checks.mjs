@@ -70,14 +70,38 @@ const INJECTION = [
 export const looksLikeInjection = (text) => INJECTION.some((re) => re.test(text));
 
 // ---- Check 4: distress ------------------------------------------------------------
-// If someone mentions self-harm or hopelessness, the reply always includes
-// support resources (step 9), whatever the model said.
+// A deliberately conservative, incomplete signal: never use it as proof that
+// someone is safe. Crisis support is handled without invoking the model.
 const DISTRESS = [
-  /\b(kill|hurt|harm) (myself|me)\b/i,
-  /\b(suicid|end it all|end my life|want to die|don'?t want to (live|be here))/i,
-  /\b(no point in (anything|living|life)|see the point in anything)\b/i,
+  /\b(?:kill|hurt|harm|cut)\s+(?:myself|me)\b/i,
+  /\b(?:suicid\w*|self[ -]?harm|end it all|end my (?:own )?life|take my (?:own )?life)\b/i,
+  /\b(?:want|going|plan|planning|decided|thinking|ready|intend|need|about)\b(?:\s+\w+){0,3}\s+(?:to\s+)?end(?:ing)?\s+it\b(?!\s+with\s+(?:(?:my|our|the)\s+)?(?:[a-z-]+\s+){0,2}(?:partner|boyfriend|girlfriend|husband|wife|spouse|phone company|gym membership|subscription|contract)\b)/i,
+  /\b(?:want|going|plan|planning|decided|thinking|ready|intend|need|about)\b(?:\s+\w+){0,3}\s+(?:to\s+)?end(?:ing)?\s+it\b[^.!?]{0,100}\b(?:by my side|beside me|here with me)\b/i,
+  /\b(?:want|wish|going|ready)\s+to\s+die\b(?!\s+(?:my|your|our|the)\s+hair\b)|\b(?:wish|wishing)\s+i\s+(?:was|were)\s+dead\b/i,
+  /\b(?:don'?t|do not|never)\s+(?:want\s+to|wanna)\s+(?:live|be (?:here|alive))\b/i,
+  /\b(?:no point in (?:anything|living|life)|(?:don'?t|do not|can'?t|cannot) see (?:any |the )?point (?:in )?(?:anything|living|going on))\b/i,
+  /\b(?:can'?t|cannot|can not)\s+(?:do this|go on|keep going|take it)\s+any\s*more\b/i,
+  /\b(?:can'?t|cannot|can not|unable to)\s+(?:keep myself|stay|be)\s+safe\b/i,
+  /\b(?:can'?t|cannot|can not|unable to)\s+stay\s+alive\b/i,
+  /\b(?:everyone|they|people|my family)\s+(?:would|will|'d)\s+be\s+better off without me\b/i,
+  /\bwhat(?:'s| is) the point of (?:going on|living)\b/i,
+  /\bno reason to (?:keep )?(?:live|living|go on|continue living)\b/i,
+  /\b(?:wish|want)\s+(?:i\s+)?(?:could\s+|to\s+)?(?:just\s+)?disappear\s+(?:forever|permanently)\b/i,
+  /\b(?:don'?t|do not)\s+want\s+to\s+wake\s+up\b|\b(?:wish|hope)\s+i\s+(?:would|could|will)\s+not\s+wake\s+up\b/i,
 ];
-export const showsDistress = (text) => DISTRESS.some((re) => re.test(text));
+// Only an unambiguous, standalone affirmation ends the short crisis context.
+// In particular, "I am safe now, but ..." must not hide a continuing risk.
+export const explicitlySafe = (text) => /^(?:(?:yes|thanks|thank you)[,.! ]+)?(?:i(?:'m| am) (?:feeling )?safe now|i feel safe now|i(?:'m| am) no longer in (?:immediate )?danger)[.! ]*$/i.test(String(text ?? '').replace(/[’‘]/g, "'").trim());
+export const showsDistress = (text, previousText = "") => {
+  const normalized = String(text ?? "").replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+  if (DISTRESS.some((re) => re.test(normalized))) return true;
+  if (explicitlySafe(normalized)) return false;
+  // While bounded recent context indicates a crisis, all replies retain the
+  // support response until a clear safety statement. Avoid assuming a short
+  // or indirect reply is benign simply because it lacks a keyword.
+  const prior = String(previousText ?? "").replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+  return DISTRESS.some((re) => re.test(prior));
+};
 export const SUPPORT_LINE =
   "If you're going through a hard time, you don't have to handle it alone. In the US you can call or text 988 (Suicide & Crisis Lifeline); elsewhere, findahelpline.com lists free local services.";
 
