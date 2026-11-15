@@ -1,4 +1,13 @@
-# Hackathon Chat Starter
+# WizQuest Personal Coach
+
+**Buildathon demo:** http://34.136.82.108:8888/ (temporary VM deployment).
+
+**Start here:** See [Personal Coach setup and limitations](docs/PERSONAL_COACH.md)
+and the [future authentication plan](docs/AUTH_PLAN.md). The material below is
+the original starter guide; its Mood Meter prompt, review data, and sample tests
+describe the previous example and are not the current coach's evaluation.
+
+# Hackathon Chat Starter (original guide)
 
 A ChatGPT-style chat app you can run locally and deploy to the web in about 15 minutes.
 Use it as the starting point for your hackathon project.

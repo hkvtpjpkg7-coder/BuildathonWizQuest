@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Mood Meter</title>
+  <title>WizQuest — Personal Coach</title>
   <!--
     public/index.html: the whole web app in one file.
       <style>  colours (light + dark mode), layout, chat bubbles, test-runner table
@@ -15,8 +15,8 @@
   -->
   <style>
     :root {
-      --bg: #f6f7f9; --panel: #fff; --side: #eef0f3; --text: #1b1f24; --muted: #5f6670; --border: #dfe3e8;
-      --accent: #2f6fde; --user: #e7effc; --ok: #1d7a46; --ok-bg: #e6f4ec; --bad: #b8332a; --bad-bg: #fbeae8;
+      --bg: #f7f5ef; --panel: #fffefa; --side: #edf1e9; --text: #1c3e35; --muted: #586c61; --border: #dbe1d5;
+      --accent: #245c4b; --user: #e4eee4; --ok: #1d7a46; --ok-bg: #e6f4ec; --bad: #b8332a; --bad-bg: #fbeae8;
       --warn: #8a5a00; --warn-bg: #fdf3dc; --pass: #1f5fbf; --pass-bg: #e6eefc;
     }
     @media (prefers-color-scheme: dark) {
@@ -46,6 +46,7 @@
     .tabs { display: flex; gap: 4px; margin-right: auto; }
     .tabs button { background: transparent; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); font-weight: 600; }
     .tabs button.on { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+    .tabs button:disabled { cursor: not-allowed; opacity: .55; }
     .view { flex: 1; min-height: 0; display: none; flex-direction: column; }
     .view.on { display: flex; }
     #messages { flex: 1; overflow-y: auto; padding: 24px 16px; }
@@ -63,6 +64,8 @@
     .src-list summary { cursor: pointer; }
     .sources { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
     .sources a { color: var(--accent); }
+    .source-text { display: block; margin-top: 3px; white-space: pre-wrap; }
+    .privacy-note { max-width: 760px; margin: 0 auto 8px; font-size: .76rem; color: var(--muted); }
     .empty { text-align: center; color: var(--muted); margin-top: 12vh; }
     .empty h2 { color: var(--text); margin: 0 0 6px; }
     .starters { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 16px; }
@@ -113,16 +116,17 @@
 <body>
 <div class="app">
   <aside>
-    <h1>Mood Meter</h1>
+    <h1>WizQuest</h1>
     <button class="btn" id="new-chat">+ New chat</button>
     <ul id="sessions"></ul>
-    <div class="side-note">Chats are saved on the server. This list lives in your browser.</div>
+    <div class="side-note">No account sign-in yet. Conversations may be saved on the server and can be read by someone with the session ID. This list is kept in this browser.</div>
   </aside>
 
   <main>
     <header>
       <div class="tabs">
-        <button class="on" data-view="chat">Chat</button>
+        <button class="on" data-view="chat">Personal Coach</button>
+        <button type="button" disabled title="Not available yet">Mentor · coming later</button>
         <button data-view="tests">Test runner</button>
       </div>
       <button class="btn ghost" id="dl-json" disabled>Download JSON</button>
@@ -134,9 +138,10 @@
       <div id="messages"><div class="thread" id="thread"></div></div>
       <form id="composer">
         <div class="composer-inner">
-          <textarea id="input" rows="1" placeholder="Paste some text to analyse, or ask a follow-up…" aria-label="Message"></textarea>
+          <textarea id="input" rows="1" placeholder="What’s on your mind? Ask a question or follow up…" aria-label="Your question for the personal coach"></textarea>
           <button class="btn" id="send">Send</button>
         </div>
+        <p class="privacy-note">Avoid names and sensitive details. Your messages may be sent to the configured AI provider and saved on the server. AI can make mistakes and is not medical care.</p>
       </form>
     </section>
 
@@ -146,10 +151,11 @@
         <div class="card">
           <h2>Run a test file</h2>
           <p class="hint">CSV columns: <code>id, group, turns, expected_behavior</code> (optional: <code>pass_if, fail_if</code>). Separate turns with <code>||</code>. Each test runs in its own new session, turn by turn, so follow-ups use memory. <code>expected_behavior</code> is ANSWER, DECLINE or CARE.</p>
+          <p class="hint">Upload coach-specific tests to evaluate this app. The preset files below belong to the old sentiment/reviews starter, so they do not measure the personal coach. Automatic scores compare response categories only; check the actual replies for source accuracy and safety.</p>
           <div class="row">
-            <button class="btn ghost" id="load-sample" type="button">Load sample tests</button>
-            <button class="btn ghost" id="load-demo" type="button">Load demo tests (harder)</button>
-            <button class="btn ghost" id="load-rag" type="button">Load RAG + API tests</button>
+            <button class="btn ghost" id="load-sample" type="button">Load legacy sentiment tests</button>
+            <button class="btn ghost" id="load-demo" type="button">Load legacy demo tests</button>
+            <button class="btn ghost" id="load-rag" type="button">Load legacy reviews/API tests</button>
             <input type="file" id="file" accept=".csv,text/csv" />
           </div>
           <div class="row">
@@ -216,7 +222,7 @@
   async function api(path, opts) {
     const res = await fetch(path, opts);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) { const error = new Error(data.error || `HTTP ${res.status}`); error.status = res.status; throw error; }
     return data;
   }
 
@@ -238,22 +244,24 @@
   // sessionId is the chat currently on screen (null = a new, unsaved chat).
   // `sessions` is the sidebar list, kept in this browser: [{ id, title, updated }].
   // The messages themselves live on the server, not here.
-  let sessionId = null;
-  let sessions = store.get("mm_sessions", []);
+  const SESSION_KEY = "wizquest_coach_sessions";
+  const ACTIVE_SESSION_KEY = "wizquest_active_session";
+  let sessions = store.get(SESSION_KEY, []);
+  let sessionId = store.get(ACTIVE_SESSION_KEY, null);
+  let sending = false;
+  let loadingSession = false;
   const thread = $("thread"), input = $("input");
 
   // Welcome screen with clickable example questions (shown for a new chat).
   function renderEmpty() {
     const starters = [
-      'What\'s the sentiment of "the apple was crunchy and delicious"?',   // plain sentiment
-      "How about the orange? It was mushy.",                                 // memory (follow-up)
-      "What do customers say about the Aurora X2 battery?",                  // RAG (FLOW 10)
-      "What's the mood of today's tech headlines?",                          // external API (FLOW 11)
-      "What's the temperature in Uganda today?",                             // off-topic → declines
+      "How can I work with my thoughts when they disturb my calm?",
+      "I struggle to stay consistent with a daily practice. What could I try?",
+      "How can I pause before responding when I feel angry?",
     ];
     thread.replaceChildren(el("div", { className: "empty" },
-      el("h2", { textContent: "Mood Meter" }),
-      el("div", { textContent: "Paste any text for its sentiment, ask what customers think of the Aurora X2 headphones, or check the mood of today's tech headlines. Follow-ups remember the conversation." }),
+      el("h2", { textContent: "A little space to reflect" }),
+      el("div", { textContent: "Share a question and explore a perspective from the Patanjali Yoga Sutras. Ask follow-up questions in this conversation; the coach can use the recent context." }),
       el("div", { className: "starters" }, ...starters.map((t) => el("button", { type: "button", textContent: t, onclick: () => { input.value = t; send(); } })))));
   }
 
@@ -267,23 +275,22 @@
       if (data.flags?.pii_redacted?.length) tags.push(el("span", { className: "tag", textContent: "PII redacted: " + data.flags.pii_redacted.join(", ") }));
       if (data.flags?.injection_suspected) tags.push(el("span", { className: "tag", textContent: "injection suspected" }));
       if (data.flags && data.flags.output_valid === false) tags.push(el("span", { className: "tag", textContent: "model ignored format" }));
-      // Where extra context came from: RAG (reviews) or an external API (live headlines).
+      // Show the specific passages sent to the model. Reopened chats retain IDs
+      // when the full source excerpts were not stored with the conversation.
       // Live replies carry data.context; reopened chats carry context_type / context_ids.
       const ctxType = data.context?.type ?? data.context_type;
-      const ctxIds = data.context ? data.context.items.map((x, i) => x.id ?? `H${i + 1}`) : data.context_ids ?? [];
-      if (ctxType === "rag") tags.push(el("span", { className: "tag src", textContent: `📚 RAG: ${ctxIds.length ? ctxIds.join(", ") : "no matching reviews"}` }));
-      if (ctxType === "api") tags.push(el("span", { className: "tag src", textContent: data.context?.error ? "🌐 Live API: unavailable" : "🌐 Live API: Hacker News" }));
+      const ctxIds = Array.isArray(data.context?.items) ? data.context.items.map((x) => x.id).filter(Boolean) : data.context_ids ?? [];
+      if (ctxType === "rag") tags.push(el("span", { className: "tag src", textContent: `Source: ${ctxIds.length ? ctxIds.join(", ") : "no matching passage"}` }));
       if (data.latency_ms != null) tags.push(el("span", { className: "tag", textContent: `${data.provider} · ${data.latency_ms} ms` }));
       b.append(el("div", { className: "meta" }, ...tags));
 
       // "Sources" dropdown: exactly what was given to the model, so you can check its answer.
       if (data.context?.items?.length) {
         const list = el("ul", { className: "sources" }, ...data.context.items.map((x, i) => {
-          if (ctxType === "rag") return el("li", {}, el("b", { textContent: `[${x.id}] ${x.rating}/5 ` }), x.text);
-          const link = /^https?:\/\//.test(x.url) ? el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.title }) : x.title;
-          return el("li", {}, el("b", { textContent: `[H${i + 1}] ` }), link);
+          const page = Number.isInteger(x.page) && x.page > 0 ? ` · PDF page ${x.page}` : "";
+          return el("li", {}, el("b", { textContent: `[${x.id || `source ${i + 1}`}]${page}` }), el("span", { className: "source-text", textContent: x.text || "" }));
         }));
-        b.append(el("details", { className: "src-list" }, el("summary", { textContent: `Sources given to the model (${data.context.items.length})` }), list));
+        b.append(el("details", { className: "src-list" }, el("summary", { textContent: `Source passages provided to the model (${data.context.items.length})` }), el("p", { textContent: data.context.source || "Patanjali Yoga Sutras source document" }), list));
       }
     }
     thread.append(b);
@@ -299,7 +306,10 @@
   //     and add the chat to the sidebar list (saved in localStorage)
   async function send() {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || sending || loadingSession) return;
+    sending = true;
+    $("new-chat").disabled = true;
+    renderSessions();
     input.value = "";
     $("send").disabled = true;
     addBubble("user", text);                         // 1
@@ -310,17 +320,21 @@
       addBubble("assistant", d.reply, d);            // 3
       if (!sessionId) {                              // 4: a new chat was created on the server
         sessionId = d.session_id;
+        store.set(ACTIVE_SESSION_KEY, sessionId);
         sessions.unshift({ id: sessionId, title: text.slice(0, 60), updated: Date.now() });
       } else {                                       // existing chat: move it to the top of the list
         const s = sessions.find((x) => x.id === sessionId);
         if (s) { s.updated = Date.now(); sessions = [s, ...sessions.filter((x) => x !== s)]; }
       }
-      store.set("mm_sessions", sessions.slice(0, 50));
+      store.set(SESSION_KEY, sessions.slice(0, 50));
       renderSessions();
     } catch (err) {
       pending.textContent = "Error: " + err.message; // e.g. rate limit, or the model is unavailable
       pending.classList.add("err");
     } finally {
+      sending = false;
+      $("new-chat").disabled = false;
+      renderSessions();
       $("send").disabled = false;
       input.focus();
     }
@@ -336,14 +350,18 @@
   // Draw the sidebar list and enable the download buttons when a chat is open.
   function renderSessions() {
     $("sessions").replaceChildren(...sessions.map((s) => el("li", {},
-      el("button", { className: s.id === sessionId ? "active" : "", textContent: s.title || "New chat", title: s.title, onclick: () => openSession(s.id) }))));
+      el("button", { className: s.id === sessionId ? "active" : "", textContent: s.title || "New chat", title: s.title, disabled: sending || loadingSession, onclick: () => openSession(s.id) }))));
     $("dl-json").disabled = $("dl-csv").disabled = !sessionId;
   }
 
   // Load a saved chat from the server and redraw all its messages.
   // Continuing to type then adds to that same chat (same sessionId).
   async function openSession(id) {
+    if (sending || loadingSession) return;
+    loadingSession = true;
+    $("new-chat").disabled = $("send").disabled = true;
     sessionId = id;
+    store.set(ACTIVE_SESSION_KEY, id);
     renderSessions();
     thread.replaceChildren(el("div", { className: "empty", textContent: "Loading…" }));
     try {
@@ -352,15 +370,25 @@
       for (const m of s.messages) addBubble(m.role, m.content, m.role === "assistant" ? { behavior: m.behavior, context_type: m.context_type, context_ids: m.context_ids } : null);
       if (!s.messages.length) renderEmpty();
     } catch (err) {
-      // The chat is no longer on the server (e.g. local dev was restarted): drop it from the list.
-      sessions = sessions.filter((x) => x.id !== id);
-      store.set("mm_sessions", sessions);
-      sessionId = null; renderSessions(); renderEmpty();
+      if (err.status === 404) {
+        // The server confirmed this session no longer exists.
+        sessions = sessions.filter((x) => x.id !== id);
+        store.set(SESSION_KEY, sessions);
+        store.set(ACTIVE_SESSION_KEY, null);
+        sessionId = null; renderSessions(); renderEmpty();
+      } else {
+        // A temporary network problem must not erase the saved session list.
+        thread.replaceChildren(el("div", { className: "empty err", textContent: "Could not load this conversation. Check the connection and select it again to retry." }));
+      }
+    } finally {
+      loadingSession = false;
+      $("new-chat").disabled = $("send").disabled = false;
+      renderSessions();
     }
   }
 
   // "+ New chat": clear the screen. The server creates the chat when the first message is sent.
-  $("new-chat").addEventListener("click", () => { sessionId = null; renderSessions(); renderEmpty(); input.focus(); });
+  $("new-chat").addEventListener("click", () => { sessionId = null; store.set(ACTIVE_SESSION_KEY, null); renderSessions(); renderEmpty(); input.focus(); });
 
   // ---------------------------------------------------------------------------
   // E. Chat: download the current chat (FLOW 3)
@@ -383,7 +411,8 @@
 
   // Start-up: draw the sidebar and the welcome screen.
   renderSessions();
-  renderEmpty();
+  if (sessionId && sessions.some((s) => s.id === sessionId)) openSession(sessionId);
+  else { sessionId = null; renderEmpty(); }
 
   // ---------------------------------------------------------------------------
   // F. Test runner (FLOW 7). Same logic as scripts/run-tests.mjs, in the browser.

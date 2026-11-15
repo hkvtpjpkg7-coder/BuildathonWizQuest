@@ -32,8 +32,8 @@ import {
   SUPPORT_LINE, MAX_TURNS_PER_SESSION, HISTORY_TURNS_SENT,
 } from "../../lib/checks.mjs";
 import { callLLM, provider, modelName, env, PROMPT_VERSION } from "../../lib/llm.mjs";
-import { retrieve, wantsReviews, formatReviews } from "../../lib/rag.mjs";
-import { wantsNews, fetchTopHeadlines, formatHeadlines, NEWS_UNAVAILABLE } from "../../lib/external.mjs";
+import { retrieve, formatPassages } from "../../lib/rag.mjs";
+import { medicalReferral, medicalReferralReply } from "../../lib/medical.mjs";
 
 // -----------------------------------------------------------------------------
 // Rate limiter used in step 3.
@@ -115,35 +115,22 @@ export default async (req, context) => {
     output_valid: true,                                  // updated in step 8
   };
 
-  // ---- Step 7a: add extra context (RAG or external API) --------------------------
-  // A simple "router" decides whether this question needs outside information:
-  //   - asks for current headlines        → call the Hacker News API (external.mjs)
-  //   - asks about the product / reviews  → retrieve matching reviews (rag.mjs)
-  //     (also for short follow-ups like "and the price?" right after a review answer)
-  //   - otherwise                         → no extra context
-  // The extra context is put IN FRONT of the user's message for the model only.
-  // It is not saved in the chat history; only which sources were used is saved.
-  let extra = null;        // { type: "rag" | "api", source, items: [...] }, returned to the browser
-  let contextText = "";    // the text block the model sees
-  const lastBot = [...session.messages].reverse().find((m) => m.role === "assistant");
-
-  if (wantsNews(redacted.text)) {
-    try {
-      const items = await fetchTopHeadlines(5);
-      extra = { type: "api", source: "Hacker News API", items };
-      contextText = formatHeadlines(items);
-    } catch (err) {
-      // The API is down or slow: keep chatting, and tell the model so it can say so.
-      console.error(JSON.stringify({ event: "external_api_error", message: String(err.message).slice(0, 200) }));
-      extra = { type: "api", source: "Hacker News API", items: [], error: "unavailable" };
-      contextText = NEWS_UNAVAILABLE;
-    }
-  } else if (wantsReviews(redacted.text, lastBot?.context_type)) {
-    const hits = retrieve(redacted.text); // top matching reviews, best first
-    extra = { type: "rag", source: "Aurora X2 reviews", items: hits };
-    contextText = hits.length
-      ? formatReviews(hits)
-      : "REFERENCE REVIEWS: no reviews matched this question. Say the reviews don't cover it; don't guess.";
+  // ---- Step 7a: retrieve PDF passages for the current concern ----------------
+  // Short follow-ups often need the previous question to locate relevant
+  // passages. Add only the previous user turn to the retrieval query; the model
+  // separately receives the bounded conversation history below. A new explicit
+  // question is not forced to reuse old sources.
+  let extra = null;
+  let contextText = "";
+  const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
+  const medicalKind = medicalReferral(redacted.text, lastUser?.content);
+  flags.medical_referral = Boolean(medicalKind);
+  const followsPrevious = lastUser && /^(?:and|but|what about|how about|why\b|what if|tell me more|can you (?:explain|clarify)|how (?:can|do|should) i (?:do|practice|apply|use) (?:this|that)|what does (?:this|that) mean|what (?:can|could|should) i do (?:before|during|after) (?:my|the|a|an)\b)\b/i.test(redacted.text.trim());
+  if (!flags.distress && !medicalKind) {
+    const query = followsPrevious ? `${lastUser.content} ${redacted.text}` : redacted.text;
+    const hits = retrieve(query);
+    extra = { type: "rag", source: "Patanjali Yoga Sutras — Sri Sri Ravi Shankar", items: hits };
+    if (hits.length) contextText = formatPassages(hits);
   }
 
   // ---- Step 7: build the conversation history (the "memory") ----------------
@@ -159,28 +146,41 @@ export default async (req, context) => {
   const userForModel = contextText ? `${contextText}\n\nUSER MESSAGE:\n${redacted.text}` : redacted.text;
   const history = [...past, { role: "user", content: userForModel }];
 
-  // ---- Step 8: call the model and check its answer ---------------------------
-  // callLLM (llm.mjs) picks Claude, OpenAI or the mock model.
-  // parseModelOutput (checks.mjs) makes sure we got {"behavior", "reply"}.
+  // ---- Step 8: prioritize crisis support and enforce sourced answers ---------
+  // A crisis response must not depend on successful retrieval or a live model.
+  // For ordinary questions, no retrieved evidence means no invented advice.
   let behavior, reply, usage = { input_tokens: 0, output_tokens: 0 };
-  try {
-    const llm = await callLLM(history);
-    usage = llm.usage;
-    const parsed = parseModelOutput(llm.raw);
-    flags.output_valid = parsed.ok;
-    ({ behavior, reply } = parsed);
-  } catch (err) {
-    // Network error, bad key, no credits, timeout... Log the reason for the
-    // developer (visible in Netlify → Logs → Functions), show a generic message to the user.
-    console.error(JSON.stringify({ event: "llm_error", message: String(err.message).slice(0, 300) }));
-    return Response.json({ error: "The assistant is unavailable right now. Please try again." }, { status: 502 });
-  }
-
-  // ---- Step 9: distress always gets support resources ------------------------
-  // A safety net that doesn't depend on the model getting it right.
   if (flags.distress) {
     behavior = "CARE";
-    if (!reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
+    reply = `I'm sorry you're going through this. ${SUPPORT_LINE}`;
+  } else if (medicalKind) {
+    behavior = "CARE";
+    reply = medicalReferralReply(medicalKind);
+  } else if (!extra.items.length) {
+    behavior = "DECLINE";
+    reply = "I couldn't find a relevant passage in the available PDF for that question. Try describing the situation in a different way.";
+  } else {
+    try {
+      const llm = await callLLM(history);
+      usage = llm.usage;
+      const parsed = parseModelOutput(llm.raw);
+      flags.output_valid = parsed.ok;
+      ({ behavior, reply } = parsed);
+      // Reject malformed model output and any invented passage identifiers.
+      // Checking IDs is not proof that the interpretation is faithful.
+      const mentioned = [...reply.matchAll(/\[([A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*)\]/g)].map((m) => m[1]);
+      const allowed = new Set(extra.items.map((item) => item.id));
+      if (!parsed.ok || (behavior === "ANSWER" && (!mentioned.length || mentioned.some((id) => !allowed.has(id))))) {
+        flags.output_valid = false;
+        behavior = "DECLINE";
+        reply = "I couldn't produce a reliably sourced response from these passages. Please try another question or consult the source directly.";
+      }
+      if (behavior === "CARE" && !reply.includes("988")) reply = `${reply} ${SUPPORT_LINE}`.trim();
+    } catch (err) {
+      // The model provider's error body can include user data; never log it.
+      console.error(JSON.stringify({ event: "llm_error" }));
+      return Response.json({ error: "The assistant is unavailable right now. Please try again." }, { status: 502 });
+    }
   }
 
   // ---- Step 10: never echo personal data back --------------------------------

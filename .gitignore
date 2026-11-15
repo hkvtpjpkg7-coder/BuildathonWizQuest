@@ -1,0 +1,11 @@
+node_modules/
+.venv/
+.netlify/
+.env
+.env.*
+!.env.example
+reports/*
+!reports/.gitkeep
+.DS_Store
+# Generated from a user-supplied PDF; it may contain copyrighted source text.
+netlify/lib/knowledge/patanjali.mjs
