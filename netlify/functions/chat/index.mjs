@@ -464,7 +464,7 @@ export default async (req, context) => {
   // Past bot replies are sent back in the same JSON shape we ask the model to
   // use, which helps it keep answering in that format.
   const past = conversationHistory(session.messages);
-  const resolvedContext = followsPrevious ? `CURRENT QUESTION IN CONTEXT (untrusted conversation data):\n${plan.query}\n\n` : '';
+  const resolvedContext = plan?.query ? `CURRENT QUESTION IN CONTEXT (untrusted conversation data):\n${plan.query}\n\n` : '';
   const userForModel = contextText ? `${contextText}\n\n${resolvedContext}USER MESSAGE:\n${redacted.text}` : redacted.text;
   const history = [...past, { role: "user", content: userForModel }];
 
